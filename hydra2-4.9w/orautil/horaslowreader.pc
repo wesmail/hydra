@@ -1,0 +1,219 @@
+//*-- AUTHOR  : Ilse Koenig
+//*-- Created  : 16/08/2004 by Ilse Koenig
+//*-- Modified : 09/02/2011 by Ilse Koenig
+
+//_HADES_CLASS_DESCRIPTION 
+//////////////////////////////////////////////////////////////////////////////
+//
+// HOraSlowReader
+//
+// Base class to read slowcontrol data from Oracle
+//
+//////////////////////////////////////////////////////////////////////////////
+
+#include "horaslowreader.h"
+#include "horaslowmanager.h"
+#include "hdbconn.h"
+#include "horaslowpartition.h"
+#include "horaslowperiod.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// SQL Communications Area
+#include <sqlca.h>
+
+ClassImp(HOraSlowReader)
+
+HOraSlowReader::HOraSlowReader() {
+  // Constructor
+  pPartition=0;
+  pConn=new HDbConn();
+}
+
+HOraSlowReader::~HOraSlowReader() {
+  // Destructor
+  if (pPartition) {
+    delete pPartition;
+    pPartition=0;
+  }
+  if (pConn) {
+    delete pConn;
+    pConn=0;
+  }
+}
+
+Bool_t HOraSlowReader::open() {
+  // Opens an Oracle connection
+  if (pConn->isOpen()) return kTRUE;
+  return pConn->connectDb(gHOraSlowManager->getOraUser(),gHOraSlowManager->getDbName());  
+}
+
+void HOraSlowReader::close() {
+  // Disconnects from Oracle
+  pConn->closeDbConn();
+}
+
+Bool_t HOraSlowReader::isOpen() {
+  return pConn->isOpen();
+}
+
+void HOraSlowReader::print() {
+  // Prints information about the database connection
+  if (pConn->isOpen())
+    cout<<"Connected to Oracle-Database db-hades\n";
+  else cout<<"*** no connection to Oracle established  ***\n";
+}
+
+Bool_t HOraSlowReader::readPartition() {
+  // Reads the start time and end time of the data partion
+  if (!pConn->isOpen()||!pPartition) return kFALSE;
+  TString startTime(pPartition->getStartTime());
+  TString endTime(pPartition->getEndTime());
+  if (startTime.Length()!=0 && endTime.Length()!=0) return kTRUE;
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* pname;
+    char  ts[20];
+    char  te[20];
+  EXEC SQL END DECLARE SECTION;
+  pname=(Char_t*)pPartition->GetName();
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT TO_CHAR(starttime,'yyyy-mm-dd hh24:mi:ss'),
+                  TO_CHAR(NVL(endtime,SYSDATE),'yyyy-mm-dd hh24:mi:ss')
+           INTO :ts, :te
+           FROM hades_slow2.archive_partitionmgnt
+           WHERE partitionname = :pname;
+  ts[19]='\0';
+  te[19]='\0';
+  if (startTime.Length()==0) startTime=ts;
+  if (endTime.Length()==0) endTime=te;
+  pPartition->setTimeRange(startTime,endTime);
+  return kTRUE;
+notfound:
+  Error("readPartition","Partition %s not found",pPartition->GetName());
+  return kFALSE;
+errorfound:
+  pConn->showSqlError("readPartition");  
+  return kFALSE;
+}
+
+Bool_t HOraSlowReader::readRunPeriods() {
+  // Reads the run periods in the partition range
+  if (!pConn->isOpen()||!pPartition) return kFALSE;
+  TString start=pPartition->getStartTime();
+  TString end=pPartition->getEndTime();
+  if (start.IsNull()||end.IsNull()) {
+    readPartition();
+    start=pPartition->getStartTime();
+    end=pPartition->getEndTime();
+  }
+  if (start.IsNull()||end.IsNull()) return kFALSE;
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* pname;
+    char* pstart;
+    char* pend;
+    int   nruns;
+    int   minid;
+    int   maxid;
+    short nruns_Ind;
+    short minid_Ind;
+    short maxid_Ind;
+  EXEC SQL END DECLARE SECTION;
+  pname=(Char_t*)pPartition->GetName();
+  pstart=(Char_t*)start.Data();
+  pend=(Char_t*)end.Data();
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT count(1), min(id), max(id)
+           INTO :nruns:nruns_Ind, :minid:minid_Ind, :maxid:maxid_Ind
+           FROM hades_slow2.hscs_run_period
+           WHERE partition_name = :pname
+             AND starttime BETWEEN TO_DATE(:pstart,'yyyy-mm-dd hh24:mi:ss')
+                 AND TO_DATE(:pend,'yyyy-mm-dd hh24:mi:ss');
+  if (nruns_Ind!=-1 && nruns>0) {
+    TObjArray* data=pPartition->setNumPeriods(nruns);
+    return readPeriods(pname,data,nruns,minid,maxid);
+  }
+notfound:
+  Error("readRunPeriods","No run summary for partition %s or specified time range",
+        pPartition->GetName());
+  return kFALSE;
+errorfound:
+  pConn->showSqlError("readRunPeriods");  
+  return kFALSE;
+}
+
+Bool_t HOraSlowReader::readPeriods(Char_t* partitionName,TObjArray* data,Int_t nData,
+                                   Int_t minPeriodId,Int_t maxPeriodId) {
+  // Private function to read the run periods in the partition range
+  if (!data) return kFALSE;
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* pname;
+    int   minid;
+    int   maxid;
+    struct {
+      int     id[NMAX_SCS];
+      char    ts[NMAX_SCS][20];
+      char    te[NMAX_SCS][20];
+      int     rid[NMAX_SCS];
+      varchar rname[NMAX_SCS][81];
+    } periods;
+    struct {
+      short id_Ind[NMAX_SCS];
+      short ts_Ind[NMAX_SCS];
+      short te_Ind[NMAX_SCS];
+      short rid_Ind[NMAX_SCS];
+      short rname_Ind[NMAX_SCS];
+    } periods_Ind;
+  EXEC SQL END DECLARE SECTION;
+  pname=partitionName;
+  minid=minPeriodId;
+  maxid=maxPeriodId;
+  Int_t nTot=0;
+  Int_t nLast=0;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND continue;
+  EXEC SQL DECLARE run_cursor CURSOR FOR
+           SELECT period_id,
+                  TO_CHAR(period_begin,'yyyy-mm-dd hh24:mi:ss'),
+                  TO_CHAR(period_end,'yyyy-mm-dd hh24:mi:ss'),
+                  run_id, filename
+           FROM hades_slow2.hscs_periods
+           WHERE partition = :pname AND period_id BETWEEN :minid AND :maxid
+           ORDER BY period_id;
+  EXEC SQL OPEN run_cursor;
+  do {  
+    EXEC SQL FETCH run_cursor INTO :periods INDICATOR :periods_Ind;
+    nLast=sqlca.sqlerrd[2]-nTot;
+    for (Int_t i=0;i<nLast;i++) {
+      HOraSlowPeriod* p=new HOraSlowPeriod();
+      periods.ts[i][19]='\0';
+      periods.te[i][19]='\0';
+      p->setPeriodId(periods.id[i]);
+      p->setStartTime((Char_t*)(periods.ts[i]));
+      p->setEndTime((Char_t*)(periods.te[i]));
+      if (periods_Ind.rid_Ind[i]!=-1) p->setRunId(periods.rid[i]);
+      if (periods_Ind.rname_Ind[i]!=-1) {
+        periods.rname[i].arr[periods.rname[i].len]='\0';      
+        p->setFilename((Char_t*)(periods.rname[i].arr));
+      }
+      data->AddAt(p,nTot);
+      nTot++;
+    } 
+  } while (nLast==NMAX_SCS&&nTot<nData);
+  EXEC SQL CLOSE run_cursor;
+  cout<<"*** Run periods read: "<<nTot<<endl;
+  if (nTot==nData) return kTRUE;
+  else {
+    Error("readPeriods","Too few data read");
+    return kFALSE;
+  }
+errorfound:
+  pConn->showSqlError("readPeriods");  
+  return kFALSE;
+}  
