@@ -1,0 +1,16 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Created : 17/01/2005
+
+//_HADES_CLASS_DESCRIPTION 
+/////////////////////////////////////////////////////////////
+//
+//  HWallRaw
+//
+//  Class for the raw data of the Forward Wall
+//
+/////////////////////////////////////////////////////////////
+
+#include "hwallraw.h"
+
+ClassImp(HWallRaw)
+

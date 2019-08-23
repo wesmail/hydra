@@ -1,0 +1,449 @@
+<!DOCTYPE UI><UI version="3.3" stdsetdef="1">
+<class>TGo4HadesOnlinePanel</class>
+<author>Mohammad Al-Turany</author>
+<widget class="QWidget">
+    <property name="name">
+        <cstring>HadesMain</cstring>
+    </property>
+    <property name="geometry">
+        <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>134</width>
+            <height>480</height>
+        </rect>
+    </property>
+    <property name="caption">
+        <string>HadesMain</string>
+    </property>
+    <vbox>
+        <property name="name">
+            <cstring>unnamed</cstring>
+        </property>
+        <property name="margin">
+            <number>11</number>
+        </property>
+        <property name="spacing">
+            <number>6</number>
+        </property>
+        <widget class="QLayoutWidget">
+            <property name="name">
+                <cstring>layout59</cstring>
+            </property>
+            <vbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>MainMon</cstring>
+                    </property>
+                    <property name="text">
+                        <string>&amp;Main Monitor</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>Config</cstring>
+                    </property>
+                    <property name="text">
+                        <string>&amp;Config</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>TriggerMon</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Trigger Monitor</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>StartMon</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Start Monitor</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>RichMon</cstring>
+                    </property>
+                    <property name="text">
+                        <string> Rich Monitor</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>MdcMon</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Mdc Monitor</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>TofMon</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Tof Monitor</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>TofinoMon</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Tofino Monitor</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>ShowerMon</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Shower Monitor</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>PysicsMon</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Physics Monitor</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>HodoMon</cstring>
+                    </property>
+                    <property name="text">
+                        <string>(Pion)Hodo Monitor</string>
+                    </property>
+                </widget>
+            </vbox>
+        </widget>
+        <spacer>
+            <property name="name">
+                <cstring>Spacer1</cstring>
+            </property>
+            <property name="orientation">
+                <enum>Vertical</enum>
+            </property>
+            <property name="sizeType">
+                <enum>Expanding</enum>
+            </property>
+            <property name="sizeHint">
+                <size>
+                    <width>20</width>
+                    <height>20</height>
+                </size>
+            </property>
+        </spacer>
+        <widget class="QLayoutWidget">
+            <property name="name">
+                <cstring>Layout2</cstring>
+            </property>
+            <vbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>0</number>
+                </property>
+                <property name="spacing">
+                    <number>6</number>
+                </property>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>Start</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Start</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>Stop</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Stop</string>
+                    </property>
+                </widget>
+                <widget class="QPushButton">
+                    <property name="name">
+                        <cstring>Reset</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Reset</string>
+                    </property>
+                </widget>
+            </vbox>
+        </widget>
+        <widget class="QLayoutWidget">
+            <property name="name">
+                <cstring>Layout26</cstring>
+            </property>
+            <hbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>0</number>
+                </property>
+                <property name="spacing">
+                    <number>6</number>
+                </property>
+                <widget class="QLCDNumber">
+                    <property name="name">
+                        <cstring>LCDEventRate</cstring>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy>
+                            <hsizetype>0</hsizetype>
+                            <vsizetype>0</vsizetype>
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                    <property name="minimumSize">
+                        <size>
+                            <width>60</width>
+                            <height>20</height>
+                        </size>
+                    </property>
+                    <property name="maximumSize">
+                        <size>
+                            <width>60</width>
+                            <height>20</height>
+                        </size>
+                    </property>
+                    <property name="paletteBackgroundColor">
+                        <color>
+                            <red>240</red>
+                            <green>240</green>
+                            <blue>240</blue>
+                        </color>
+                    </property>
+                    <property name="backgroundOrigin">
+                        <enum>WidgetOrigin</enum>
+                    </property>
+                    <property name="numDigits">
+                        <number>7</number>
+                    </property>
+                    <property name="segmentStyle">
+                        <enum>Flat</enum>
+                    </property>
+                </widget>
+                <widget class="QLabel">
+                    <property name="name">
+                        <cstring>TextLabel1</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Events/s</string>
+                    </property>
+                </widget>
+            </hbox>
+        </widget>
+    </vbox>
+</widget>
+<connections>
+    <connection>
+        <sender>Config</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openConfig()</slot>
+    </connection>
+    <connection>
+        <sender>StartMon</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openStart()</slot>
+    </connection>
+    <connection>
+        <sender>RichMon</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openRich()</slot>
+    </connection>
+    <connection>
+        <sender>TofMon</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openTof()</slot>
+    </connection>
+    <connection>
+        <sender>TofinoMon</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openTofino()</slot>
+    </connection>
+    <connection>
+        <sender>ShowerMon</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openShower()</slot>
+    </connection>
+    <connection>
+        <sender>MdcMon</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openMdc()</slot>
+    </connection>
+    <connection>
+        <sender>Start</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>StartMonitor()</slot>
+    </connection>
+    <connection>
+        <sender>Stop</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>StopMonitor()</slot>
+    </connection>
+    <connection>
+        <sender>Reset</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>ResetMonitor()</slot>
+    </connection>
+    <connection>
+        <sender>TriggerMon</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openTrigger()</slot>
+    </connection>
+    <connection>
+        <sender>MainMon</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openMain()</slot>
+    </connection>
+    <connection>
+        <sender>PysicsMon</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openPhysics()</slot>
+    </connection>
+    <connection>
+        <sender>HodoMon</sender>
+        <signal>clicked()</signal>
+        <receiver>HadesMain</receiver>
+        <slot>openHodo()</slot>
+    </connection>
+</connections>
+<includes>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4PhysicsOnline.h</include>
+    <include location="local" impldecl="in implementation">Go4CommandsAnalysis/TGo4ComSetParameter.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4TriggerOnline.h</include>
+    <include location="local" impldecl="in implementation">htrendhist.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4HadesOnlinePanelStatus.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4HadesConfig.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4ShowerOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4TofinoOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4HodoOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4TofOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4RichOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4StartOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4MdcOnline.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4HadesOnline.h</include>
+    <include location="local" impldecl="in implementation">Go4GUIRegistry/TGo4GUIRegistry.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4HadesOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4MdcOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4StartOnline.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4RichOnline.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4TofOnline.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4TofinoOnline.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4HodoOnline.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4ShowerOnline.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4HadesOnlinePanelSlots.h</include>
+    <include location="local" impldecl="in implementation">hmonhist.h</include>
+    <include location="local" impldecl="in implementation">hhistarray.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4TriggerOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">TGo4ResetParameter.h</include>
+    <include location="local" impldecl="in implementation">Go4HadesOnline/TGo4PhysicsOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">TSystem.h</include>
+    <include location="local" impldecl="in implementation">TGo4HadesOnlinePanel.ui.h</include>
+</includes>
+<forwards>
+    <forward>class TGo4PhysicsOnlineSlots</forward>
+    <forward>class TGo4TriggerOnlineSlots</forward>
+    <forward>class TGo4HadesOnlinePanel</forward>
+    <forward>class TGo4ShowerOnline</forward>
+    <forward>class TGo4ShowerOnlineSlots</forward>
+    <forward>class TGo4TofinoOnlineSlots</forward>
+    <forward>class TGo4HodoOnlineSlots</forward>
+    <forward>class TGo4TofOnlineSlots</forward>
+    <forward>class TGo4RichOnlineSlots</forward>
+    <forward>class TGo4StartOnlineSlots</forward>
+    <forward>class TGo4MdcOnlineSlots</forward>
+    <forward>class TGo4HadesOnlineSlots</forward>
+    <forward>class TGo4HadesConfigSlots</forward>
+    <forward>class TGo4HadesOnlinePanelStatus</forward>
+    <forward>class TGo4GUIRegistry</forward>
+    <forward>class TGo4HadesOnlinePanelSlots</forward>
+    <forward>class TGo4HadesConfig</forward>
+    <forward>class TGo4HadesOnline</forward>
+    <forward>class TGo4MdcOnline</forward>
+    <forward>class TGo4StartOnline</forward>
+    <forward>class TGo4RichOnline</forward>
+    <forward>class TGo4TofOnline</forward>
+    <forward>class TGo4TofinoOnline</forward>
+    <forward>class TGo4HodoOnline</forward>
+    <forward>class HMonHistAddon</forward>
+    <forward>class TGo4TriggerOnline</forward>
+    <forward>class TGo4PhysicsOnline</forward>
+</forwards>
+<variables>
+    <variable>TGo4PhysicsOnlineSlots* fxTGo4PhysicsOnlineSlots;</variable>
+    <variable>TGo4TriggerOnlineSlots* fxTGo4TriggerOnlineSlots;</variable>
+    <variable>TGo4HadesOnlinePanel* fxTGo4HadesOnlinePanel;</variable>
+    <variable>TGo4ShowerOnlineSlots* fxTGo4ShowerOnlineSlots;</variable>
+    <variable>TGo4TofinoOnlineSlots* fxTGo4TofinoOnlineSlots;</variable>
+    <variable>TGo4HodoOnlineSlots* fxTGo4HodoOnlineSlots;</variable>
+    <variable>TGo4TofOnlineSlots* fxTGo4TofOnlineSlots;</variable>
+    <variable>TGo4RichOnlineSlots* fxTGo4RichOnlineSlots;</variable>
+    <variable>TGo4StartOnlineSlots* fxTGo4StartOnlineSlots;</variable>
+    <variable>TGo4MdcOnlineSlots* fxTGo4MdcOnlineSlots;</variable>
+    <variable>TGo4HadesOnlineSlots* fxTGo4HadesOnlineSlots;</variable>
+    <variable>TGo4HadesConfigSlots* fxTGo4HadesConfigSlots;</variable>
+    <variable>TGo4HadesOnlinePanelStatus* fxTGo4HadesOnlinePanelStatus;</variable>
+    <variable>TGo4GUIRegistry *fxTGo4GUIRegistry;</variable>
+    <variable>TGo4HadesOnlinePanelSlots* fxTGo4HadesOnlinePanelSlots;</variable>
+    <variable>TGo4HadesConfig* fxTGo4HadesConfig;</variable>
+    <variable>TGo4HadesOnline* fxTGo4HadesOnline;</variable>
+    <variable>TGo4MdcOnline* fxTGo4MdcOnline;</variable>
+    <variable>TGo4StartOnline* fxTGo4StartOnline;</variable>
+    <variable>TGo4RichOnline* fxTGo4RichOnline;</variable>
+    <variable>TGo4TofOnline* fxTGo4TofOnline;</variable>
+    <variable>TGo4TofinoOnline* fxTGo4TofinoOnline;</variable>
+    <variable>TGo4HodoOnline* fxTGo4HodoOnline;</variable>
+    <variable>TGo4ShowerOnline* fxTGo4ShowerOnline;</variable>
+    <variable>TGo4TriggerOnline* fxTGo4TriggerOnline;</variable>
+    <variable>TGo4PhysicsOnline* fxTGo4PhysicsOnline;</variable>
+</variables>
+<slots>
+    <slot>destroy()</slot>
+    <slot>init()</slot>
+    <slot>openConfig()</slot>
+    <slot>openMain()</slot>
+    <slot>openMdc()</slot>
+    <slot>StartMonitor()</slot>
+    <slot>StopMonitor()</slot>
+    <slot>ResetMonitor()</slot>
+    <slot>openStart()</slot>
+    <slot>openRich()</slot>
+    <slot>openTof()</slot>
+    <slot>openTofino()</slot>
+    <slot>openShower()</slot>
+    <slot>openPhysics()</slot>
+    <slot>openTrigger()</slot>
+    <slot>DrawLCDEventRate( double rate )</slot>
+    <slot>DrawHis( HMonHistAddon * His )</slot>
+    <slot>openHodo()</slot>
+</slots>
+<pixmapinproject/>
+<layoutdefaults spacing="6" margin="11"/>
+</UI>

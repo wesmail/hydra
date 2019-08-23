@@ -1,0 +1,33 @@
+This directory contains the following files:
+
+1. README (this file)
+2. projectProgram.cc
+3. Makefile
+
+The projection of the HPidTrackCand/HPidTrackCandSim to the ntuple is done by the 
+code implemented in the projectProgram.cc file. 
+In the output ntuple you can find several variables copied from HPidHitData and HPidTrackData
+for three different momentum algorithms KICK/SPLINE/RUNGEKUTTA denoted by small _k, _s and _r. 
+In the  projectProgram.cc you can find the desciption of the ntuple variables.
+
+The Makefile file is to make  projectProgram executable. In order to compile the program the HYDRA and ROOT 
+enviroment must be set.
+
+Quick Start:
+1. Set ROOT and HYDRA enviroment
+1. Edit projectProgram.cc and set "user settings" by selecting "simulation" or "real" events
+2. Make projectProgram executable
+   make
+3. Got to build/ directory 
+   cd build/
+4. Run projectProgram to print help 
+   ./projectProgram -h  
+5. Run projectProgram (examples):
+
+   ./projectProgram -i inputFile.root -o outputFile.root 
+   or
+   ./projectProgram -i inputFiles.txt -o outputFile.root -e events
+   
+Remark:
+
+Check whether the input file contains HPidTrackCand or HPidTrackCandSim.

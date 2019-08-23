@@ -1,0 +1,358 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Modified : 18/02/2000 by Ilse Koenig
+
+//////////////////////////////////////////////////////////////////////////////
+// HDetParOraIo
+//
+// Base class for all detector I/O  classes from database Oracle
+// (uses the Oracle C/C++ precompiler)
+//
+//////////////////////////////////////////////////////////////////////////////
+
+#include "horaconn.h"
+#include "hdetparoraio.h"
+#include "hades.h"
+#include "hruntimedb.h"
+#include "hrun.h"
+#include "hparset.h"
+#include "hdetgeompar.h"
+#include "hgeomcompositevolume.h"
+#include <iostream.h>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// Include the SQL Communications Area
+#include <sqlca.h>
+ 
+ClassImp(HDetParOraIo)
+
+#define NMAX_POINTS 100
+
+HDetParOraIo::HDetParOraIo(HOraConn* pC) : HDetParIo() {
+  // constructor gets a pointer to the connection class
+  pConn=pC;
+  actContVers=0;
+  actRunId=-1;
+  geompar_date=0;
+}
+
+HDetParOraIo::~HDetParOraIo(void) {
+  // destructor
+  if (geompar_date) delete [] geompar_date;
+}
+
+
+void HDetParOraIo::commit(void) {
+  // commits all changes
+  EXEC SQL COMMIT WORK;
+  return;
+}
+ 
+
+void HDetParOraIo::rollback(void) {
+  // discards all changes since last commit 
+  EXEC SQL ROLLBACK WORK;
+  return;
+}
+
+
+void HDetParOraIo::showSqlError(const char* f) {
+  // shows SQL error messages 
+  Error(f,"\n%s",sqlca.sqlerrm.sqlerrmc);
+}
+
+
+Int_t HDetParOraIo::getRunStart() {
+  // Gets the actual run id from the runtime database and compares it with
+  // the last used actRunId for fetching data.
+  // If they are different, the run start time (converted to ansi C time) is
+  // read from Oracle and stored together with the run id in the data members
+  // run_id and runStart
+  actRunId=-1;
+  Int_t runStart=-1;
+  actContVers=(HRun*)gHades->getRuntimeDb()->getCurrentRun();
+  if (!actContVers) {
+    Error("getRunStart()","current run not set in runtime database");
+    return -1;
+  }
+  actRunId=actContVers->getRunId();
+  runStart=pConn->getRunStart(actRunId);
+  return runStart;
+}
+
+
+Int_t HDetParOraIo::getPredefVersion(HParSet* pPar) {
+  // finds out if a version for the parameter container has been set by
+  // the user (typically by defining a reference run for initialisation
+  // in the macro
+  // retrun -1 if no version found 
+  HParVersion* pv=(HParVersion*)actContVers->getParVersion((char*)pPar->GetName());
+  if (pv>0) return pv->getInputVersion(inputNumber);
+  else return -1;
+}
+
+
+Bool_t HDetParOraIo::readGeometry(HDetGeomPar* pPar,Int_t* set) {
+  // reads the geometry of a detector
+  // this function is called by the derived classes after the read of
+  //   the unique names of the modules and components 
+  Int_t version=pPar->getInputVersion(inputNumber);
+  Bool_t allFound=kTRUE;
+  for(Int_t pos=0;pos<pPar->getNumModules();pos++) {
+    HModGeomPar* pMod=pPar->getModule(pos);
+    if (pMod && set[pos]) {
+      Int_t geomId=readGeomIndex(pMod->GetName());
+      if (geomId==-1) return kFALSE;
+      HGeomTransform& tp=pMod->getLabTransform();
+      char mother[10];
+      if (readGeomTransform(&tp,mother,geomId,version)==kTRUE) set[pos]=0;
+      else return kFALSE;
+    }
+  }
+  for(Int_t i=0;i<pPar->getNumRefModules();i++) {
+    HGeomCompositeVolume* refMod=pPar->getRefVolume(i);
+    if (refMod && refMod->getNumPoints()==0) {
+      HGeomTransform& tm=refMod->getTransform();
+      Int_t mInd=readGeomIndex(refMod->GetName());
+      if (mInd==-1) return kFALSE;
+      char mother[10];
+      if (readGeomTransform(&tm,mother,mInd,version)==kFALSE) allFound=kFALSE;
+      refMod->setMother(mother);
+      if (readGeomShape(refMod,mInd,version)==kFALSE ||
+          readGeomPoints(refMod,mInd,version)<1) allFound=kFALSE;
+      for(Int_t l=0;l<refMod->getNumComponents();l++) {
+        HGeomVolume* comp=refMod->getComponent(l);
+        comp->setMother(refMod->GetName());
+        HGeomTransform& tc=comp->getTransform();
+        Int_t cInd=-1;
+        if ((cInd=readGeomIndex(comp->GetName()))==-1 ||
+          readGeomTransform(&tc,mother,cInd,version)==kFALSE) allFound=kFALSE;
+        tc.transTo(tm);
+        if (readGeomShape(comp,cInd,version)==kFALSE || 
+          readGeomPoints(comp,cInd,version)<1) allFound=kFALSE;
+      }
+    }
+  }
+  pPar->setInputVersion(version,inputNumber);
+  pPar->setChanged();
+  return allFound;
+}
+
+
+Int_t HDetParOraIo::readGeomVersion(Int_t vers) {
+  // reads the geometry version
+  // takes the newest version as a temporal solution as long as the geometry
+  // tables have to version management base on the date
+  Int_t runStart=getRunStart();
+  if (runStart==-1) return kFALSE;
+  if (!geompar_date) geompar_date=new Double_t[2];
+  else {
+    if (vers!=-1 && runStart>=geompar_date[0] && runStart<=geompar_date[1])
+      return vers;
+  }
+  geompar_date[0]=-1;
+  geompar_date[1]=-1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int versId;
+    double until;   
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readGeomVersion()");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT MAX(vers_index), hdate.to_ansitime(hdate.high_date)
+           INTO :versId, until
+           FROM hades_geom.geom_versions;
+  geompar_date[0]=runStart;
+  geompar_date[1]=until;
+  return versId;
+notfound:
+  return -1;
+ }
+
+
+Int_t  HDetParOraIo::readGeomIndex(const Text_t* volName) {
+  // reads the index of a geometry volume defined by its name
+  if (strlen(volName)==0) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* oName;
+    int id;   
+  EXEC SQL END DECLARE SECTION;
+  oName=(char*)volName;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readGeomIndex()");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT obj_index INTO :id
+           FROM hades_geom.geom_objects
+           WHERE obj_name_short = :oName;
+  return id;
+notfound:
+  return -1;
+}
+
+
+Bool_t  HDetParOraIo::readGeomShape(HGeomVolume* volu, Int_t objIndex,
+                                    Int_t version) {
+  // reads the shape of a volume
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    int vers;   
+    varchar shape[8];
+    short shape_Ind=-1;
+  EXEC SQL END DECLARE SECTION;
+  id=objIndex;
+  vers=version;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readGeomShape(...)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT UPPER(Geant_shape) INTO :shape INDICATOR :shape_Ind
+           FROM hades_geom.geom_properties
+           WHERE obj_index = :id
+             AND vers_index =
+                     ( SELECT MAX(vers_index)
+                       FROM hades_geom.geom_properties
+                       WHERE obj_index = :id AND vers_index <= :vers );
+  if (shape_Ind!=-1) {
+    shape.arr[shape.len]='\0';
+    volu->setShape(((char*)(shape.arr)));
+    return kTRUE;
+  }
+notfound:   
+  return kFALSE;
+}
+
+
+Int_t  HDetParOraIo::readGeomPoints(HGeomVolume* volu, Int_t objIndex,
+                                    Int_t version) {
+  // reads the geometry points of a volume
+  // (not yet implemented for shape PGON and PCON !)
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    int vers;
+    struct {
+      double x[NMAX_POINTS];
+      double y[NMAX_POINTS];
+      double z[NMAX_POINTS];
+      int c[NMAX_POINTS];
+      int n[NMAX_POINTS];
+    } p3d;
+  EXEC SQL END DECLARE SECTION;
+  id=objIndex;
+  vers=version;
+  Int_t nPoints=0, np=NMAX_POINTS, lastPoints=0;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readGeomPoints(...)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE point_cursor CURSOR FOR
+    SELECT ROUND(p3d_x,3), ROUND(p3d_y,3), ROUND(p3d_z,3), p3d_corner, np
+    FROM ( SELECT obj_index AS oi, MAX(vers_index) as vi,
+                  MAX(p3d_corner) AS np
+           FROM hades_geom.geom_3dpoints
+           WHERE obj_index = :id AND vers_index <= :vers
+           GROUP BY obj_index
+         ), hades_geom.geom_3dpoints
+    WHERE obj_index = oi AND vers_index = vi AND  p3d_corner > 0;
+  EXEC SQL OPEN point_cursor;
+  while (np==NMAX_POINTS) {
+    EXEC SQL FETCH point_cursor INTO :p3d;
+    np=sqlca.sqlerrd[2] - lastPoints;
+    if (lastPoints==0) {
+      nPoints = p3d.n[0];
+      if (nPoints>0) volu->createPoints(nPoints);
+    }
+    for(int i=0;i<np;i++) {
+      volu->setPoint((p3d.c[i]-1),p3d.x[i],p3d.y[i],p3d.z[i]);
+    }
+    lastPoints+=np;
+  }
+  EXEC SQL CLOSE point_cursor;
+  return nPoints;
+}
+
+
+Bool_t  HDetParOraIo::readGeomTransform(HGeomTransform* transform,
+                      Text_t* mother, Int_t objIndex, Int_t version) {
+  // reads the geometry transformation of a volume
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    int vers;
+    struct {
+      double t1;
+      double t2;
+      double t3;
+      double r11;
+      double r12;
+      double r13;
+      double r21;
+      double r22;
+      double r23;
+      double r31;
+      double r32;
+      double r33;
+      varchar ref[8];
+    } tr;
+    struct {
+      short t1_Ind;
+      short t2_Ind;
+      short t3_Ind;
+      short r11_Ind;
+      short r12_Ind;
+      short r13_Ind;
+      short r21_Ind;
+      short r22_Ind;
+      short r23_Ind;
+      short r31_Ind;
+      short r32_Ind;
+      short r33_Ind;
+      short ref_Ind;
+    } tr_Ind;
+  EXEC SQL END DECLARE SECTION;
+  id=objIndex;
+  vers=version;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readGeomTransform(...)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+
+  EXEC SQL SELECT
+      trans_t1, trans_t2, trans_t3,
+      trans_r11, trans_r12, trans_r13,
+      trans_r21,trans_r22,trans_r23,
+      trans_r31,trans_r32,trans_r33,
+      ref_obj_name_short
+  INTO :tr INDICATOR :tr_Ind
+  FROM hades_geom.geom_transformations
+  WHERE obj_index = :id AND vers_index =
+                     ( SELECT MAX(vers_index)
+                       FROM hades_geom.geom_transformations
+                       WHERE obj_index = :id AND vers_index <= :vers );
+  if (tr_Ind.ref_Ind!=-1) {
+    tr.ref.arr[tr.ref.len]='\0';
+    strcpy(mother,((char*)(tr.ref.arr)));
+  } else return kFALSE;
+  Double_t t[3]; 
+  t[0]=tr.t1;
+  t[1]=tr.t2;
+  t[2]=tr.t3;
+  transform->setTransVector(t);
+  Double_t r[3]; 
+  r[0]=tr.r11;
+  r[1]=tr.r12;
+  r[2]=tr.r13;
+  r[3]=tr.r21;
+  r[4]=tr.r22;
+  r[5]=tr.r23;
+  r[6]=tr.r31;
+  r[7]=tr.r32;
+  r[8]=tr.r33;
+  transform->setRotMatrix(r);
+  return kTRUE;
+notfound:
+  return kFALSE;
+}
+
+
+
+
+
+
+
+
+
+

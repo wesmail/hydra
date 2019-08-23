@@ -1,0 +1,16 @@
+BEAMTIME=$1       #a shortcut like 'nov02' describing the beamtime for which we are making parameters
+EXPERIMENTTYPE=$2 #'sim' or 'exp'
+GENERATION=$3     #the generation of the DSTs
+TARGETDIRECTORY=$4/$1/$2/$3/
+FILELIST=pdfNtupleList${BEAMTIME}${EXPERIMENTTYPE}${GENERATION}.txt
+EXPERIMENT_ID=${BEAMTIME}${EXPERIMENTTYPE}${GENERATION}
+TRACKINGCONTEXT=$5
+REFRUNID=$6
+
+OUTPUTFILE=${TARGETDIRECTORY}/RichPIDContainers$_${EXPERIMENT_ID}_${TRACKINGCONTEXT}.root;
+PDFINPUT=${TARGETDIRECTORY}/RichPdfHistograms_${EXPERIMENT_ID}_${TRACKINGCONTEXT}.root
+NORMALIZATIONINPUT=${TARGETDIRECTORY}/RichNormalizationHistograms_${EXPERIMENT_ID}_${TRACKINGCONTEXT}.root
+root -l <<EOF
+.L ../macros/MakeContainers/fillRICHPIDContainer.C
+fillRICHPIDContainer("${PDFINPUT}","${NORMALIZATIONINPUT}","${OUTPUTFILE}",${REFRUNID});
+EOF

@@ -1,0 +1,4 @@
+{
+THtml html;
+html.MakeAll();
+}

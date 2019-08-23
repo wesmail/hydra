@@ -1,0 +1,76 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Modified : 15/12/99
+
+//////////////////////////////////////////////////////////////////////////////
+// HOraInfo
+//
+// Class for additional information from database Oracle
+// (uses the Oracle C/C++ precompiler)
+// Functions in this class are not used by the analysis but can be called
+// by the user on the ROOT interpreter to get additional information from
+// Oracle tables.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+#include "horainfo.h"
+#include "horaconn.h"
+#include <iostream.h>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// Include the SQL Communications Area
+#include <sqlca.h>
+ 
+ClassImp(HOraInfo)
+
+ 
+void HOraInfo::showSqlError(char* f) {
+  // shows SQL error messages
+  Error(f,"\n%s",sqlca.sqlerrm.sqlerrmc);
+}
+
+
+void HOraInfo::showRunStart(Int_t run) {
+  // prints the start date and time of given run
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id; 
+    char runDate[21];
+    short runDate_Ind=-1;
+  EXEC SQL END DECLARE SECTION;
+  id=run;
+  EXEC SQL WHENEVER SQLERROR DO
+    showSqlError("showRunStart(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT TO_CHAR(run_start,'DD-MON-YYYY HH:MI:SS')
+           INTO :runDate INDICATOR :runDate_Ind
+           FROM hades_oper.runs
+           WHERE run_id = :id;
+  if (runDate_Ind>=0) cout<<"Run "<<run<<" started at "<<runDate<<'\n';
+  else cout << "no Run_Start for run "<<run<<'\n';
+  return;
+notfound:
+  cout << "Run not found" <<endl;
+  return;
+}
+
+Int_t HOraInfo::getRunId(Text_t* daqFilename) {
+  // returns the run id of a daq file
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* daqfile;
+    int run;
+  EXEC SQL END DECLARE SECTION;
+  daqfile=daqFilename;
+  EXEC SQL WHENEVER SQLERROR DO
+    showSqlError("getRunId(Text_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT run_id INTO :run
+           FROM hades_oper.runs
+           WHERE UPPER(daq_filename) = UPPER(:daqfile);           
+  return run;
+notfound:
+  Error("getRunId(Text_t*)","No such DAQ file %s",daqFilename);
+  return -1;
+}

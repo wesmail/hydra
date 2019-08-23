@@ -1,0 +1,126 @@
+#!/bin/bash
+##############################################################################
+#
+#  twiki-attach - A bash script for uploading several file in one operation
+#  to any of the GSI supported wiki's driven by the TWiki software.
+#
+#  This script relies on BASH and CURL
+#
+#  Written by Christopher Huhn <c.huhn@gsi.de>
+#  Enhanced by Simon Lang <s.lang@gsi.de>
+#  19.07.2005
+#
+##############################################################################
+
+
+function usage {
+	cat >&2 <<EOF
+
+ $(basename $0) - A batch upload tool for TWiki
+
+ Synopsis:
+
+   $(basename $0) [-u <name>] [-h] [-l] <location> <file1> [<file2> ...]
+
+ Arguments:
+
+   <location> : Selects the TWiki topic to which the files are attached.
+                The syntax is  wiki[/.]web[/.]topic (dots or slashes are
+                allowed.
+                Currently  supported Wikis are: GSI, CBM and Hades. Wiki
+                name are case insensitive - the others not!
+                Example: gsi.Sandbox.TestTopic1
+   -u <name>  : An alternative WikiName; otherwise  it defaults to  your
+                name  as  it is  stored  in the linux password database.
+   -h         : Hide the file in the topic's attachment table.
+   -l         : Create a link to the attached file in the topic.
+   <file1>    : The filename of the files being uploaded.
+
+EOF
+	exit 1
+}
+
+
+## processing of cmdline arguments
+while getopts "u:c:hl" OPTION; do
+	case $OPTION in
+		u)
+			USERNAME=$OPTARG
+			;;
+		c)
+			COMMENT=$OPTARG
+			;;
+		h)
+			OPTIONS="$OPTIONS -F hidefile=on"
+			;;
+		l)
+			OPTIONS="$OPTIONS -F createlink=on"
+			;;
+		*)
+			echo "Unknown argument -$OPTION" >&2
+			usage
+			;;
+	esac
+done
+shift $(($OPTIND - 1))
+
+## some defaults
+[ "$USERNAME" ] || USERNAME=$(getent passwd $(whoami) | cut -f 5 -d ':' | cut -f 1 -d ',' | tr -d ' ')
+[ "$COMMENT" ] || COMMENT="batch upload by $(whoami)@$(hostname)"
+
+if [ -z "$USERNAME" ]; then
+	echo
+	echo "No wiki username could be guessed for $(whoami)" >&2
+	usage
+fi
+
+[ -n "$1" ] || usage
+
+# extract the wiki, web and topic name from the first commandline argument
+LOCATION=$(echo $1 | tr '.' '/')
+shift
+if [ $(echo $LOCATION | egrep -c '^[^/]+/[^/]+/[^/]+$') -ne 1 ]; then
+	echo
+	echo "Incorrect location definition!" >&2
+	usage
+fi
+WIKI=${LOCATION%%/*}
+TOPIC=${LOCATION#*/}
+
+# select URL prefix based on all GSI supported wiki names
+case $WIKI in
+[Hh][Aa][Dd][Ee][Ss])
+	BASEURL="http://hades-wiki.gsi.de/cgi-bin/upload"
+	;;
+[Gg][Ss][Ii])
+	BASEURL="http://wiki.gsi.de/cgi-bin/upload"
+	;;
+[Cc][Bb][Mm])
+	BASEURL="http://cbm-wiki.gsi.de/cgi-bin/upload"
+	;;
+*)
+	echo
+	echo "Unkown Wiki!" >&2
+	usage
+	;;
+esac
+
+[ -n "$1" ] || usage
+
+# fetch the user's password for all following upload operations - not very
+# secure - but better than typing ten times the password!
+echo -n "Enter TWiki password for user $USERNAME: "
+read -s PASSWORD
+echo
+
+# upoad the stuff
+OPTIONS="--user $USERNAME:$PASSWORD -F filecomment=\"$COMMENT\" $OPTIONS"
+for FILE in $@; do
+	eval "curl $OPTIONS -F filepath=@$FILE $BASEURL/$TOPIC"
+done
+
+# clean up
+OPTIONS="_____oh_____yes_____this_____once_____was_____a_____password_____"
+PASSWORD="_____oh_____yes_____this_____once_____was_____a_____password_____"
+unset OPTIONS
+unset PASSWORD

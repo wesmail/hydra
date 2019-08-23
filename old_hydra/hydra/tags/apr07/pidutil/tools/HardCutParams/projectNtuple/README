@@ -1,0 +1,42 @@
+This directory contains the following files:
+
+1. hydraIncludes.h
+2. projectPidNtuple.h
+3. projectPidNtuple.cc
+4. anaProjectPidNtuple.cc
+5. Makefile
+
+The hydraIncludes.h contains all hydra includes needed to compile the program.
+
+The projection of the HPidTrackCand/HPidTrackCandSim to the ntuple is done by the 
+reconstructor class which implementation is in projectPidNtuple.h and projectPidNtuple.cc files. 
+In the output ntuple you can also find several variables copied from HPidHitData and HPidTrackData
+for three different momentum algorithms KICK/SPLINE/RUNGEKUTTA denoted by small _k, _s and _r. 
+In the HPidHistograms::execute() function (projectPidNtuple.cc) you can find the desciption of the 
+ntuple variables.
+
+The anaProjectPidNtuple.cc file conatins main() and anaProjectPidNtuple() functions to run the projectPidNtuple reconstructor within HYDRA enviroment. 
+
+The Makefile to make anaProjectPidNtuple executable.
+
+Quick Start:
+1. Set ROOT and HYDRA enviroment
+2. Edit anaProjectPidNtuple.cc and change context to "simulation" or "real" depending on the input.
+3. Make anaProjectPidNtuple executable
+   make
+4. Run anaProjectPidNtuple
+   ./anaProjectPidNtuple [inFileName] [outFileName] [nEvents] [startEvt]
+   or
+   ./anaProjectPidNtuple [inFileName] [outFileName] [nEvents]
+   or 
+   ./anaProjectPidNtuple [inFileName] [outFileName]
+
+Example: 
+inFileName ==> /d/hades/c2c_dst.root 
+outFileName ==> /d/hades/c2c_dst_nt.root
+nEvents ==> 1000
+startEvt ==> 0
+
+Remark:
+
+Check if the inFileName the HPidTrackCand or HPidTrackCandSim is stored

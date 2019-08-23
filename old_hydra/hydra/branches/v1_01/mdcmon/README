@@ -1,0 +1,33 @@
+For monitoring the following files should be copied.
+
+The source code for monitoring GUI:  
+mdcgui.h
+mdcgui.cc 
+histdraw.h
+histdraw.cc
+Makefile
+
+For ROOT CINT:
+LinkDef.h
+
+and rootlogon.C 
+for starting of the Root session.
+
+Please, don't forget to update hmdcmonitor.h and hmdcmonitor.cc files in 
+the $(HADDIR)/mdc directory.
+
+As an example the following macros can be used:
+
+mdcMon.C     - for remote connect to DAQ server
+mdcMonHld.C  - for reading from .hld files
+
+To make use:
+
+make all
+
+To run start 2 Root sessions:
+
+In the first one do : analyze("mdcMonHld.C",1000);
+The second one will start the Mdc monitor GUI automatically.
+
+A. Nekhaev  November 25, 1999

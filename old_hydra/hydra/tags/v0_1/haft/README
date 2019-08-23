@@ -1,0 +1,23 @@
+            The HADES Acceptance Filter for Theorists  (HAFT)
+            =================================================
+
+The fiter consists of acceptance matrices, one per particle type, e.g.
+e-, e+, pi-, pi+, protons, etc., and of smearing functions that model the
+finite detector resolution.
+
+The HADES acceptance matrices are produced and stored as ROOT TH3F objects,
+i.e. 3-dimensional histograms Acc(p,theta,phi).  However,  as most theorists
+prefer (!) to code their transport theories in FORTRAN, the easiest way to
+provide the filter to them is to code it in ANSI FORTRAN 77 as well.  This
+means, among other things, that it is best to transform the acceptance matrices
+into a FORTRAN-readable format: ascii or binary.  I opted for the more compact,
+loss-less and temper-proof binary format.
+
+
+The Root C++ macro writeHAFT.C is used to do the conversion and writing.
+
+The FORTRAN program readHAFT.f illustrates how the files can be opened and
+read.
+
+
+HAFT v0.1  07/04/05  R. Holzmann 

@@ -1,0 +1,40 @@
+Date: Thu Dec  8 11:24:58 CET 2005
+Author: Benjamin Sailer
+
+As readPairs and readPairsE have most of their code in common, it seems
+reasonable to have only the source files
+- readPairs.cc
+- pairs.cc
+- pairs.h
+(as well as one Makefile) left over.  So changes are consistent to
+both.  The decision whether code is compiled only in simulation (or
+only for experimental data) is done by conditional compilation looking
+at the precompiler define "SIMULATION", so if code should be available
+only in the simulation, is has to be enclosed in
+
+#if SIMULATION
+...
+#endif // SIMULATION
+
+as well as code that is only necessary for real data should be enclosed
+in
+
+#if ! SIMULATION
+
+#endif // ! SIMULATION
+
+that's why the source files
+- readPairsE.cc
+- pairsE.cc
+- pairsE.h
+- pairsS.cc
+- pairsS.h
+and
+- Makefile.exp
+
+have vanished.
+
+Best regards
+
+Benjamin
+

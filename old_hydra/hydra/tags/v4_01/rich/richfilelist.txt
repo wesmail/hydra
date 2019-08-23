@@ -1,0 +1,3 @@
+[ASCII File List]
+
+Files = richanalysispar.txt ,  richgeometry_new_par.txt, richdigitisationpar.txt 

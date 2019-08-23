@@ -1,0 +1,82 @@
+
+COMPILER	= g++
+
+ifdef DISTCC
+CXX=$(DISTCC) $(COMPILER)
+else
+CXX=$(COMPILER)
+endif
+
+LD		= g++
+
+LDFLAGS		= -g 
+
+CINTINC		= -I$(HADDIR_BASE)/datasource \
+	          -I$(HADDIR_BASE)/datastruct \
+	  	  -I$(HADDIR_BASE)/eventhandling \
+	          -I$(HADDIR_BASE)/geometry  \
+	 	  -I$(HADDIR_BASE)/runtimedb \
+	 	  -I$(HADDIR_BASE)/util \
+                  -I$(HADDIR_BASE)/correlation \
+                  -I$(HADDIR_KICKPLANE) \
+                  -I$(HADDIR_MDCTRACKD) \
+                  -I$(HADDIR_MDCTRACKG) \
+                  -I$(HADDIR_MDCTRACKS) \
+                  -I$(HADDIR_MDC) \
+                  -I$(HADDIR_PHYANA) \
+                  -I$(HADDIR_RICHUTIL) \
+                  -I$(HADDIR_RICH) \
+                  -I$(HADDIR_SHOWERTOFINO) \
+                  -I$(HADDIR_SHOWERUTIL) \
+                  -I$(HADDIR_SHOWER) \
+                  -I$(HADDIR_START) \
+                  -I$(HADDIR_TOFINO) \
+                  -I$(HADDIR_TOF) \
+                  -I$(HADDIR_TRIGGER) \
+                  -I$(HADDIR_QA) \
+                  -I$(HADDIR_TRIGGERUTIL) \
+                  -I$(HADDIR_PID) 
+#                  -I$(HADDIR_ONLINE) \
+#                  -I$(HADDIR_REVT)
+
+ifdef ONLINEHYDRA
+	CINTINC	+= -I$(HADDIR_EVTSERVER) \
+                   -I$(CLIDIR)  
+endif
+ifdef ORACLE_HOME
+	CINTINC += -I$(HADDIR_ORA)
+	CINTINC += -I$(HADDIR_ORAUTIL)
+endif
+
+CXXFLAGS	=  -O2 -g -pipe -Wall -fPIC  -DR__GLIBC \
+	 	  -DDEBUG_LEVEL=$(HDL)  \
+                  -I$(ROOTSYS)/include $(CINTINC)
+
+ifdef NOLIBNEW
+ROOTLIBS	=  $(shell root-config --nonew --libs)
+ROOTGLIBS   	=  $(shell root-config --nonew --glibs)
+else
+ROOTLIBS	=  $(shell root-config --libs)
+ROOTGLIBS   	=  $(shell root-config --glibs)
+endif
+
+#RINT		=  $(ROOTSYS)/src/RINT_G__Rint.o $(ROOTSYS)/src/RINT_Rint.o
+
+RINT		=  
+LIBS		=  $(ROOTLIBS)
+
+ifdef ONLINEHYDRA
+   LIBS		+= -L$(GSIDIR) -lhrevcli 
+endif
+
+GLIBS		=  $(LIBS) $(ROOTGLIBS)  
+SOEXT		=  so
+AEXT            =  a
+SOFLAGS		=  -shared -Wl,-soname,
+TEMPBASE = /tmp/base_$(USER)
+
+
+
+
+
+

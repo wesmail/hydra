@@ -1,0 +1,18 @@
+Unix.*.Root.DynamicPath:	.:$(HADDIR)/lib:$(ROOTSYS)/lib
+Unix.*.Root.MacroPath:          .:$(HADDIR)/macros
+
+Rint.Logon:		rootlogon.C
+Rint.Logoff:		rootlogoff.C
+
+Canvas.ShowEventStatus:	true
+
+Root.Html.Author:        //*-- Author : 
+Root.Html.LastUpdate:    //*-- Modified : 
+Root.Html.Copyright:     //*-- Copyright :
+Root.Html.OutputDir:	 /u/halo/web-docs/anal
+
+Root.Html.SourceDir: 	$(HADDIR)/base/datastruct:$(HADDIR)/base/datasource:$(HADDIR)/base/eventhandling:$(HADDIR)/base/geometry:$(HADDIR)/base/runtimedb:$(HADDIR)/base/util:$(HADDIR)/base/correlation:$(HADDIR)/tof:$(HADDIR)/start:$(HADDIR)/shower:$(HADDIR)/mdc:$(HADDIR)/rich:$(HADDIR)/ora:$(HADDIR)/mdctrackD:$(HADDIR)/tofino
+
+Root.Html.Root:       http://root.cern.ch/root/html
+
+Root.Debug:	0

@@ -1,0 +1,779 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Last modified : 12/02/2001 by I. Koenig
+//*-- Created : 13/03/2000
+
+//////////////////////////////////////////////////////////////////////////////
+// HTofParOraIo
+//
+// Interface class to database Oracle for input/output of parameters needed
+// by the Tof
+// (uses the Oracle C/C++ precompiler)
+//
+//////////////////////////////////////////////////////////////////////////////
+
+#include "htofparoraio.h"
+#include "hades.h"
+#include "hruntimedb.h"
+#include "hrun.h"
+#include "hspectrometer.h"
+#include "hdetector.h"
+#include "htofdetector.h"
+#include "htoflookup.h"
+#include "htofcalpar.h"
+#include "htofgeompar.h"
+#include "hgeomcompositevolume.h"
+#include <iostream.h>
+#include <unistd.h>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// SQL Communications Area
+#include <sqlca.h>
+
+ClassImp(HTofParOraIo)
+
+#define TOF_MAXSEC 6
+#define TOF_MAXMODS 132
+#define TOF_MAXRODS 1056
+#define TOF_MAXSECRODS 176
+
+HTofParOraIo::HTofParOraIo(HOraConn* pC) : HDetParOraIo(pC) {
+  // constructor
+  // sets the name of the I/O class "HTofParIo"
+  // gets the pointer to the connection class
+  fName="HTofParIo";
+  pVersId=-1;
+  initModules=new TArrayI(TOF_MAXMODS);
+  tofIds=0;
+  secIds=0;
+  lookupDate=0;
+  calparDate=0;
+  resetComments();
+}
+
+HTofParOraIo::~HTofParOraIo() {
+  // destructor
+  if (initModules) delete initModules;
+  if (tofIds) delete tofIds;
+  if (secIds) delete secIds;
+  if (lookupDate) delete [] lookupDate;
+  if (calparDate) delete [] calparDate;
+}
+  
+Bool_t HTofParOraIo::init(HParSet* pPar,Int_t* set) {
+  // calls special read-function for each parameter container
+  if (startIo()==-1) return kFALSE; // no modules found
+  const Text_t* name=pPar->GetName();
+  if (strcmp(name,"TofLookup")==0) return read(((HTofLookup*)pPar),set); 
+  if (strcmp(name,"TofCalPar")==0) return read(((HTofCalPar*)pPar),set); 
+  if (strcmp(name,"TofGeomPar")==0) return read(((HTofGeomPar*)pPar),set);
+  cout<<"initialization of "<<name<<" not possible from Oracle!"<<endl;
+  return kFALSE;
+}
+
+Int_t HTofParOraIo::write(HParSet* pPar) {
+  // calls the appropriate write function for the container
+  if (startIo()==-1) return 0; // no modules found
+  const Text_t* name=pPar->GetName();
+  if (!strcmp(name,"TofCalPar"))
+     return writePar((HTofCalPar*)pPar);
+  return 0;
+}
+
+Int_t HTofParOraIo::startIo(void) {
+  if ((runStart=getRunStart())==-1) return -1;
+  if (tofIds==0) {
+    tofIds=new TArrayI(TOF_MAXMODS);
+    secIds=new TArrayI(TOF_MAXSEC);
+    readIds();
+  }
+  return pVersId;  // is -1 if no modules found
+}
+
+Int_t HTofParOraIo::readIds() {
+  // reads the id numbers of all modules defined for actual run
+  // and stores them in array tofIds
+  // returns the run id if at least one module can be found
+  // returns -1 if nothing is found
+  for(Int_t i=0;i<TOF_MAXMODS;i++) tofIds->AddAt(0,i);
+  for(Int_t i=0;i<TOF_MAXSEC;i++) secIds->AddAt(0,i);
+  pVersId=-1;
+
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int id[TOF_MAXMODS];
+      int sec[TOF_MAXMODS];
+      int mod[TOF_MAXMODS];
+    } mods;
+  EXEC SQL END DECLARE SECTION;
+
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readIds()");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+
+  EXEC SQL SELECT module_id, sector, segment
+    INTO :mods
+    FROM tof_ana.setup_at_run;
+
+  Int_t nMods=sqlca.sqlerrd[2];
+  HTofDetector* det=(HTofDetector*)(gHades->getSetup()->getDetector("Tof"));
+  maxModules=det->getMaxModules();
+  Int_t s, m, pos;
+  for(Int_t i=0;i<nMods;i++) {
+    s=mods.sec[i]-1;
+    m=mods.mod[i]-1;
+    pos=s*maxModules+m;
+    if (det->getModule(s,m)) {
+      tofIds->AddAt(mods.id[i],pos);
+      secIds->AddAt(mods.sec[i],s);
+    }
+  }
+  //  printIds();
+  if (nMods>0) pVersId=getActRunId();
+  return pVersId;
+}
+
+
+void HTofParOraIo::printIds() {
+  // prints the id numbers of all modules
+  if (tofIds) {
+    for(Int_t i=0;i<TOF_MAXSEC;i++) {
+      cout<<"sector: "<<i+1<<"   tof ids:\n";
+      for(Int_t j=0;j<maxModules;j++) { cout<<" "<<tofIds->At(i*maxModules+j); }
+      cout<<'\n';
+    }
+    cout<<'\n';
+  }
+}
+
+Int_t HTofParOraIo::getLookupVersion(Int_t version) { 
+  // reads the newest version number for the lookup table needed by the
+  // unpacker valid for the current event file
+  if (!lookupDate) {
+    lookupDate=new Double_t[2];
+    clearVersDate(lookupDate);
+  }
+  Double_t dateRange[2];
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      double c_since;
+      double c_until;
+      double r_since;
+      double r_until;
+    } lvrec;
+    struct {
+      short c_since_ind;
+      short c_until_ind;
+      short r_since_ind;
+      short r_until_ind;
+    } lvrec_ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getLookupVersion(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT hdate.to_ansitime(config_since), 
+                  hdate.to_ansitime(config_until),
+                  hdate.to_ansitime(dc_since),
+                  hdate.to_ansitime(dc_until)
+    INTO :lvrec INDICATOR :lvrec_ind
+    FROM tof_ana.tof_lookup_time_range;
+  if (lvrec.c_since!=-1) dateRange[0]=lvrec.c_since;
+  if (lvrec.r_since!=-1 && lvrec.r_since>dateRange[0]) dateRange[0]=lvrec.r_since;
+  if (lvrec.c_until!=-1) dateRange[1]=lvrec.c_until;
+  if (lvrec.r_until!=-1 && lvrec.r_until<dateRange[1]) dateRange[1]=lvrec.r_until;
+  if (version==-1 || runStart<lookupDate[0] || runStart>lookupDate[1] ||
+      dateRange[0]!=lookupDate[0] || dateRange[1]!=lookupDate[1]) {
+    lookupDate[0]=dateRange[0];
+    lookupDate[1]=dateRange[1];
+    return getActRunId();
+  } else return version;
+notfound:
+  return -1;
+};
+
+Bool_t HTofParOraIo::read(HTofLookup* pPar, Int_t* set) {
+  // reads the lookup table (parameter container TofLookup) needed by the unpacker
+  Int_t version=getPredefVersion(pPar);
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (version==-1) version=getLookupVersion(contVers);
+  if (version==-1) return kFALSE;
+  if (contVers==version) return kTRUE;
+  pPar->clear();
+  pPar->setInputVersion(version,inputNumber);
+  initModules->Reset();
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int crate[TOF_MAXRODS];
+      int slot[TOF_MAXRODS];
+      int chan[TOF_MAXRODS];
+      char branch[TOF_MAXRODS][2];
+      int sec[TOF_MAXRODS];
+      int mod[TOF_MAXRODS];
+      int rod[TOF_MAXRODS];
+      char side[TOF_MAXRODS][2];
+    } lrec;
+    struct {
+      short crate[TOF_MAXRODS];
+      short slot[TOF_MAXRODS];
+      short chan[TOF_MAXRODS];
+      short branch[TOF_MAXRODS];
+      short sec[TOF_MAXRODS];
+      short mod[TOF_MAXRODS];
+      short rod[TOF_MAXRODS];
+      short side[TOF_MAXRODS];
+    } lrec_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HTofLookup*,Int_t*)");
+  EXEC SQL DECLARE lookup_cur CURSOR FOR
+    SELECT crate, slot, channel, branch, sector, module, rod, side
+      FROM tof_ana.tof_lookup_at_date;
+  EXEC SQL OPEN lookup_cur;
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  Int_t nbs=0, nbslast=0, s, m, pos;
+  do {
+    EXEC SQL FETCH lookup_cur INTO :lrec INDICATOR :lrec_Ind;
+    nbs=sqlca.sqlerrd[2] - nbslast;
+    nbslast+=nbs;
+    for(Int_t i=0;i<nbs;i++) {
+      s=lrec.sec[i]-1;
+      m=lrec.mod[i]-1;
+      pos=s*maxModules+m;
+      if (set[pos]) {
+        pPar->fill(lrec.crate[i]-1,lrec.slot[i]-1,lrec.branch[i][0],
+                   lrec.chan[i],s,m,lrec.rod[i]-1,lrec.side[i][0]);
+        initModules->AddAt(pos+1,pos);
+      }
+    }
+  } while (nbs==TOF_MAXRODS);
+  EXEC SQL CLOSE lookup_cur;
+  Bool_t allFound=kTRUE;
+  Int_t n=TOF_MAXSEC*maxModules;
+  for(Int_t i=0;i<n;i++) {
+    if (set[i]>0 && initModules->At(i)<=0) allFound=kFALSE;
+  }
+  if (allFound) pPar->setChanged();
+  return allFound;
+}
+
+Int_t HTofParOraIo::getCalparVersion(Int_t version) {
+  // reads the newest version number for the calibration parameters
+  // valid for the current event file
+  if (calparDate) {
+    if (version!=-1 && runStart>=calparDate[0] && runStart<=calparDate[1])
+      return version;
+  }
+  else calparDate=new Double_t[2];
+  clearVersDate(calparDate);
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int sec[TOF_MAXSEC];
+      double t_since[TOF_MAXSEC];
+      double t_until[TOF_MAXSEC];
+      double a_since[TOF_MAXSEC];
+      double a_until[TOF_MAXSEC];
+    } cal;
+    struct {
+      short sec[TOF_MAXSEC];
+      short t_since[TOF_MAXSEC];
+      short t_until[TOF_MAXSEC];
+      short a_since[TOF_MAXSEC];
+      short a_until[TOF_MAXSEC];
+    } cal_Ind;
+  EXEC SQL END DECLARE SECTION;
+  Int_t nSec=0;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getCalparVersion(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT sector,
+                  hdate.to_ansitime(t_vers_valid_since),
+                  hdate.to_ansitime(t_vers_valid_until),
+                  hdate.to_ansitime(a_vers_valid_since),
+                  hdate.to_ansitime(a_vers_valid_until)
+           INTO :cal INDICATOR :cal_Ind
+           FROM tof_ana.cal_vers_at_date
+           WHERE t_vers_invalid_since > sysdate
+             AND NVL(a_vers_invalid_since,hdate.high_date) > sysdate;
+  nSec=sqlca.sqlerrd[2];
+  for(Int_t i=0;i<nSec;i++) {
+    Int_t s=cal.sec[i]-1;
+    if (secIds->At(s)>0) {
+      if (cal_Ind.t_since[i]!=-1 && cal.t_since[i]>calparDate[0])
+          calparDate[0]=cal.t_since[i];
+      if (cal_Ind.t_until[i]!=-1  && cal.t_until[i]<calparDate[1])
+          calparDate[1]=cal.t_until[i];
+      if (cal_Ind.a_since[i]!=-1 && cal.a_since[i]>calparDate[0])
+          calparDate[0]=cal.a_since[i];
+      if (cal_Ind.a_until[i]!=-1  && cal.a_until[i]<calparDate[1])
+          calparDate[1]=cal.a_until[i];
+    }
+  }
+  //  cout<<"version range: "<<calparDate[0]<<" - "<<calparDate[1]<<endl;
+  if (calparDate[0]>0) return getActRunId();
+  return -1;
+};
+
+
+Bool_t HTofParOraIo::read(HTofCalPar* pPar, Int_t* set) {
+  // reads the calibration parameters and fill the TofCalPar container
+  Int_t version=getPredefVersion(pPar);
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (version==-1) version=getCalparVersion(contVers);
+  if (version==-1) return kFALSE;
+  if (contVers==version) return kTRUE;
+  pPar->setInputVersion(version,inputNumber);
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int sec[TOF_MAXRODS];
+      int mod[TOF_MAXRODS];
+      int rod[TOF_MAXRODS];
+      float sl[TOF_MAXRODS];
+      float sr[TOF_MAXRODS];
+      float gv[TOF_MAXRODS];
+      float op[TOF_MAXRODS];
+      float ot[TOF_MAXRODS];
+      float pl[TOF_MAXRODS];
+      float pr[TOF_MAXRODS];
+      float al[TOF_MAXRODS];
+      float ga[TOF_MAXRODS];
+    } cal;
+    struct {
+      short sec[TOF_MAXRODS];
+      short mod[TOF_MAXRODS];
+      short rod[TOF_MAXRODS];
+      short sl[TOF_MAXRODS];
+      short sr[TOF_MAXRODS];
+      short gv[TOF_MAXRODS];
+      short op[TOF_MAXRODS];
+      short ot[TOF_MAXRODS];
+      short pl[TOF_MAXRODS];
+      short pr[TOF_MAXRODS];
+      short al[TOF_MAXRODS];
+      short ga[TOF_MAXRODS];
+    } cal_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HTofCalPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT sector, segment, rod,
+                  slope_left, slope_right,
+                  group_vel, offset_pos, offset_time,
+                  ped_left, ped_right, att_len, gain_asym
+           INTO :cal INDICATOR :cal_Ind
+           FROM tof_ana.cal_par_at_date;
+  initModules->Reset();
+  Int_t nCal=sqlca.sqlerrd[2];
+  Int_t s, m, pos;
+  for(Int_t i=0;i<nCal;i++) {
+    s=cal.sec[i]-1;
+    m=cal.mod[i]-1;
+    pos=s*maxModules+m;
+    if (set[pos]) {
+      HTofCalParCell& cell=(*pPar)[s][m][(cal.rod[i]-1)];
+      if (cal_Ind.sl[i]!=-1) cell.setLeftK(cal.sl[i]);
+      if (cal_Ind.sr[i]!=-1) cell.setRightK(cal.sr[i]);
+      if (cal_Ind.gv[i]!=-1) cell.setVGroup(cal.gv[i]);
+      if (cal_Ind.op[i]!=-1) cell.setPosK(cal.op[i]);
+      if (cal_Ind.ot[i]!=-1) cell.setTimK(cal.ot[i]);
+      if (cal_Ind.pl[i]!=-1) cell.setPedestalL(cal.pl[i]);
+      if (cal_Ind.pr[i]!=-1) cell.setPedestalR(cal.pr[i]);
+      if (cal_Ind.al[i]!=-1) cell.setAttLen(cal.al[i]);
+      if (cal_Ind.ga[i]!=-1) cell.setGainAsym(cal.ga[i]);
+      initModules->AddAt(pos+1,pos);
+    }
+  }     
+  Bool_t allFound=kTRUE;
+  Int_t n=TOF_MAXSEC*maxModules;
+  for(Int_t i=0;i<n;i++) {
+    if (set[i]>0) {
+      if (initModules->At(i)>0) set[i]=0;
+      else allFound=kFALSE;
+    }
+  }
+  pPar->setChanged();
+  printInfo("TofCalPar: module(s) initialized from Oracle: ");
+  return allFound;
+}
+
+
+Bool_t HTofParOraIo::read(HTofGeomPar* pPar, Int_t* set) {
+  // reads the geometry of the TOF and fills the TofGeomPar container
+  Int_t version=getPredefVersion(pPar);
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (version==-1) version=readGeomVersion(contVers);
+  if (version==-1) return kFALSE;
+  if (contVers==version) return kTRUE;
+  pPar->setInputVersion(version,inputNumber);
+  Bool_t allFound=kFALSE;
+  if ((allFound=readModGeomNames(pPar,set))) {
+    readCompGeomNames(pPar,set);
+    allFound=readGeometry(pPar,set);     // in base class
+  }
+  for(Int_t i=0;i<TOF_MAXMODS;i++) {
+    if (initModules->At(i)) set[i]=0;
+  }
+  printInfo("TofGeomPar: module(s) initialized from Oracle: ");
+  return allFound;
+}
+
+
+Bool_t HTofParOraIo::readModGeomNames(HTofGeomPar* pPar,Int_t* set) {
+  // reads the tof_pos_id of all modules
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int tof[TOF_MAXMODS];
+      int sec[TOF_MAXMODS];
+      int mod[TOF_MAXMODS];
+      varchar oname[TOF_MAXMODS][9];
+    } mods;
+    struct {
+      short tof_Ind[TOF_MAXMODS];
+      short sec_Ind[TOF_MAXMODS];
+      short mod_Ind[TOF_MAXMODS];
+      short oname_Ind[TOF_MAXMODS];
+    } mods_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readModGeomNames()");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+
+  EXEC SQL SELECT module_id, sector, segment, geom_obj
+    INTO :mods INDICATOR :mods_Ind
+    FROM tof_ana.setup_at_run;
+
+  Int_t nMods=sqlca.sqlerrd[2];
+  Int_t pos, s, m;
+  char ref[10];
+  initModules->Reset();
+  for(Int_t i=0;i<nMods;i++) {
+    s=mods.sec[i]-1;
+    m=mods.mod[i]-1;
+    HModGeomPar* pMod=pPar->getModule(s,m);
+    pos=s*maxModules + m;
+    if (pMod && set[pos]) {
+      if (mods_Ind.oname_Ind[i]!=-1) {
+        mods.oname[i].arr[mods.oname[i].len]='\0';
+        pMod->SetName((char*)(mods.oname[i].arr));
+        initModules->AddAt(pos+1,pos);
+        strcpy(ref,(char*)(mods.oname[i].arr));
+        ref[4]='1'; // reference module in sector 1
+                    // not yet introduced in database
+        pMod->setRefName(ref);
+        Int_t mr=pPar->getModNumInMod(ref);
+        HGeomCompositeVolume* refMod=pPar->getRefVolume(mr);
+        if (refMod==0) {
+          refMod=new HGeomCompositeVolume(pPar->getNumComponents());
+          refMod->SetName(ref);
+          pPar->addRefVolume(refMod,mr);
+        }
+        pMod->setVolume(refMod);
+      }
+    }
+  }
+  Bool_t allFound=kTRUE;
+  Int_t n=TOF_MAXSEC*maxModules;
+  for(Int_t i=0;i<n;i++) {
+    if (set[i]>0 && initModules->At(i)==0) allFound=kFALSE;
+  }
+  return allFound;
+}
+
+
+Bool_t HTofParOraIo::readCompGeomNames(HTofGeomPar* pPar,Int_t* set) {
+  // reads the names of all rods in the geometry tables
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int sec[TOF_MAXRODS];
+      int mod[TOF_MAXRODS];
+      int rod[TOF_MAXRODS];
+      varchar oname[TOF_MAXRODS][9];
+    } rods;
+    struct {
+      short sec_Ind[TOF_MAXRODS];
+      short mod_Ind[TOF_MAXRODS];
+      short rod_Ind[TOF_MAXRODS];
+      short oname_Ind[TOF_MAXRODS];
+    } rods_Ind;
+  EXEC SQL END DECLARE SECTION;
+
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readCompGeomNames(...)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+
+  EXEC SQL SELECT sector, segment, rod_number, r.geom_obj_name
+    INTO :rods INDICATOR :rods_Ind
+    FROM tof_ana.setup_at_run s, tof_ana.rod r
+    WHERE s.module_id=r.module_id;
+ 
+  Int_t nRods=-1, pos, s, m;
+  nRods=sqlca.sqlerrd[2];
+  for(Int_t k=0;k<nRods;k++) {
+    s=rods.sec[k]-1;
+    m=rods.mod[k]-1;
+    HModGeomPar* pMod=pPar->getModule(s,m);
+    pos=s*maxModules + m;
+    if (pMod && set[pos]) {
+      HGeomCompositeVolume* pRefMod=pMod->getRefVolume();
+      if (rods_Ind.oname_Ind[k]!=-1) {
+        rods.oname[k].arr[rods.oname[k].len]='\0';
+        HGeomVolume* volu=pRefMod->getComponent((rods.rod[k]-1));
+        volu->SetName((char*)(rods.oname[k].arr));
+      }
+    }
+  }
+  Bool_t allFound=kTRUE;
+  Int_t n=TOF_MAXSEC*maxModules;
+  for(Int_t i=0;i<n;i++) {
+    if (set[i]>0 && initModules->At(i)==0) allFound=kFALSE;
+  }
+  return allFound;
+}
+
+
+void HTofParOraIo::printInfo(Text_t* msg) {
+  // prints the modules initialized from Oracle
+  // will later go to the log file
+  Bool_t first=kTRUE;
+  for(Int_t i=0;i<TOF_MAXMODS;i++) {
+    if (initModules->At(i)) {
+      if (first) {
+        cout<<msg;
+        first=kFALSE;
+      }
+      cout<<(initModules->At(i)-1)<<" ";
+    }
+  }
+  cout<<'\n';
+}
+
+
+Int_t HTofParOraIo::writePar(HTofCalPar* pPar) {
+  Int_t v=-1;
+  if ((v=writeTimeCalPar(pPar))==-1) return v;
+  if ((v=writeAmpCalPar(pPar))==-1) return v;
+  return v;
+}
+
+
+Int_t HTofParOraIo:: writeTimeCalPar(HTofCalPar* pPar) {
+  if (!tofIds) return kFALSE; // no modules found
+  cout<<"---------------  tof_cal_time   ---------------\n";
+  Int_t version=createCalVers("time_cal");
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int sec[TOF_MAXSECRODS];
+    int mod[TOF_MAXSECRODS];
+    int rod[TOF_MAXSECRODS];
+    int vers[TOF_MAXSECRODS];
+    float sl[TOF_MAXSECRODS];
+    float sr[TOF_MAXSECRODS];
+    float gv[TOF_MAXSECRODS];
+    float op[TOF_MAXSECRODS];
+    float ot[TOF_MAXSECRODS];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  Int_t id, pos;
+  for(Int_t s=0; s<pPar->getSize(); s++) {
+    HTofCalParSec& rSec= (*pPar)[s];
+    Int_t nRod=0;
+    for(Int_t m=0; m<rSec.getSize(); m++) {
+      HTofCalParMod& rMod= rSec[m];
+      pos=s*maxModules+m;
+      id=tofIds->At(pos);
+      if (id>0) {
+        for(Int_t c=0; c<rMod.getSize(); c++) {
+          HTofCalParCell& cell= rMod[c];
+          sec[nRod]=s+1;
+          mod[nRod]=m+1;
+          rod[nRod]=c+1;
+          vers[nRod]=version;
+          sl[nRod]=cell.getLeftK();
+          sr[nRod]=cell.getRightK();
+          gv[nRod]=cell.getVGroup();
+          op[nRod]=cell.getPosK();
+          ot[nRod]=cell.getTimK();
+          nRod++;
+        }
+      }
+    }
+    if (nRod==0) continue;
+    rows_to_insert=nRod;
+    Int_t nRodO=countRods(s+1);
+    if (nRod!=nRodO) {
+      Error("writeTimeCalPar(HTofCalPar*)",
+            "\n Number of rods in Oracle:     %i\n Number of rods in TofCalPar:  %i\n",
+            nRodO,nRod);
+      rollback();
+      return -1;
+    }
+    EXEC SQL WHENEVER SQLERROR GOTO not_found;
+    EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+    EXEC SQL FOR :rows_to_insert
+      INSERT INTO tof_ana.time_cal_par (rod_id, time_cal_vers_id,
+                        slope_time_left, slope_time_right,
+                        group_vel, offset_pos, offset_time)
+      VALUES (tof_ana.cal_par_query.get_rod_id(:sec,:mod,:rod),
+                        :vers, :sl, :sr, :gv, :op, :ot);
+    cout<<"sector_id: "<<(s+1)<<"    "<<rows_to_insert<<" rows inserted\n";
+  }
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writeTimeCalPar(HTofCalPar*)");
+  rollback();
+  return -1;
+}
+
+
+Int_t HTofParOraIo:: writeAmpCalPar(HTofCalPar* pPar) {
+  if (!tofIds) return kFALSE; // no modules found
+  cout<<"---------------  tof_cal_amp   ---------------\n";
+  Int_t version=createCalVers("amp_cal");
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int sec[TOF_MAXSECRODS];
+    int mod[TOF_MAXSECRODS];
+    int rod[TOF_MAXSECRODS];
+    int vers[TOF_MAXSECRODS];
+    float pl[TOF_MAXSECRODS];
+    float pr[TOF_MAXSECRODS];
+    float al[TOF_MAXSECRODS];
+    float ga[TOF_MAXSECRODS];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  Int_t id, pos;
+  for(Int_t s=0; s<pPar->getSize(); s++) {
+    HTofCalParSec& rSec= (*pPar)[s];
+    Int_t nRod=0;
+    for(Int_t m=0; m<rSec.getSize(); m++) {
+      HTofCalParMod& rMod= rSec[m];
+      pos=s*maxModules+m;
+      id=tofIds->At(pos);
+      if (id>0) {
+        for(Int_t c=0; c<rMod.getSize(); c++) {
+          HTofCalParCell& cell= rMod[c];
+          sec[nRod]=s+1;
+          mod[nRod]=m+1;
+          rod[nRod]=c+1;
+          vers[nRod]=version;
+          pl[nRod]=cell.getPedestalL();
+          pr[nRod]=cell.getPedestalR();
+          al[nRod]=cell.getAttLen();
+          ga[nRod]=cell.getGainAsym();
+          nRod++;
+        }
+      }
+    }
+    if (nRod==0) continue;
+    rows_to_insert=nRod;
+    Int_t nRodO=countRods(s+1);
+    if (nRod!=nRodO) {
+      Error("writeAmpCalPar(HTofCalPar*)",
+            "\n Number of rods in Oracle:     %i\n Number of rods in TofCalPar:  %i\n",
+            nRodO,nRod);
+      rollback();
+      return -1;
+    }
+    EXEC SQL WHENEVER SQLERROR GOTO not_found;
+    EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+    EXEC SQL FOR :rows_to_insert
+      INSERT INTO tof_ana.amp_cal_par (rod_id, amp_cal_vers_id,
+                        ped_left, ped_right, att_len, gain_asym)
+      VALUES (tof_ana.cal_par_query.get_rod_id(:sec,:mod,:rod),
+                        :vers, :pl, :pr, :al, :ga);
+     cout<<"sector_id: "<<(s+1)<<"    "<<rows_to_insert<<" rows inserted\n";
+  }
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writeAmpCalPar(HTofCalPar*)");
+  rollback();
+  return -1;
+}
+
+
+Int_t HTofParOraIo::createCalVers(const Text_t* versionName) {
+  // creates a new version for the calibration parameters
+  // return the new version
+  if (author.IsNull()) {
+    Error("createCalVers(...)",
+          "author of calibration parameters not defined");
+    return -1;
+  }
+  if (description.IsNull()) {
+    Error("createCalVers(...)",
+          "descriction of calibration parameters not defined");
+    return -1;
+  }
+  if (runsUsed.IsNull()) {
+    Error("createCalVers(...)",
+          "runs used for calibration parameters not defined");
+    return -1;
+  }
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* vName;
+    char* creator;
+    char* descript;
+    char* runs;
+    int vers=-1;
+  EXEC SQL END DECLARE SECTION;
+  vName=(char*)versionName;
+  creator=(char*)author.Data();
+  descript=(char*)description.Data();
+  runs=(char*)runsUsed.Data();
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    BEGIN
+      IF :vName=tof_ana.cal_par_query.versName1 THEN
+        INSERT INTO tof_ana.time_cal_vers (author, description, runs_used)
+          VALUES (:creator, :descript, :runs);
+        SELECT tof_ana.cal_par_query.get_curr_version(:vName)
+          INTO :vers FROM DUAL;
+      ELSIF :vName=tof_ana.cal_par_query.versName2 THEN
+        INSERT INTO tof_ana.amp_cal_vers (author, description, runs_used)
+          VALUES (:creator, :descript, :runs);
+        SELECT tof_ana.cal_par_query.get_curr_version(:vName)
+          INTO :vers FROM DUAL;
+      END IF;
+    END;
+  END-EXEC;
+  if (vers!=-1) cout<<"Oracle: version '"<<versionName<<"' created:  "<<vers<<endl;
+  else Error("createCalVers(const Text_t*)","no version created");
+  return vers;
+not_found:
+  showSqlError("createCalVers(const Text_t*)");
+  return vers;
+}
+
+
+Int_t HTofParOraIo::countRods(Int_t sec) {
+  // returns the total number of rods of all modules defined in a sector 
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    int num;
+  EXEC SQL END DECLARE SECTION;
+  id=sec;
+  EXEC SQL WHENEVER SQLERROR DO
+    showSqlError("countRods(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT COUNT(rod_id) INTO :num
+           FROM tof_ana.setup_at_run s, tof_ana.rod r
+           WHERE sector=:id AND active=1 AND s.module_id=r.module_id;
+  return num;
+notfound:
+  return 0;
+}
+
+
+void HTofParOraIo::resetComments(void) {
+  // resets the comments used to create a new version
+  author="";
+  description="";
+  runsUsed="";
+}
+
+
+void HTofParOraIo::clearVersDate(Double_t* p) {
+  // creates a date range array
+  p[0]=-1;
+  p[1]=1.E+11;
+}

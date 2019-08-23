@@ -1,0 +1,34 @@
+#ifndef HSPECTROMETER_H
+#define HSPECTROMETER_H
+
+#include "TNamed.h"
+#include "TList.h"
+
+class HDetector;
+class HParIo;
+class HGeomShapes;
+class HDetGeomPar;
+
+class HSpectrometer : public TNamed {
+protected:
+  TList* detectors;  // List of detectors
+  Bool_t changed;    //! flag is kTRUE if the setup changes
+  HGeomShapes* shapes;  //! shape class containing the different shapes
+public:
+  HSpectrometer();
+  ~HSpectrometer();
+  void addDetector(HDetector* det);
+  HDetector* getDetector(Text_t* name);
+  Bool_t init(Text_t* level="raw");
+  void activateParIo(HParIo* io);
+  Bool_t write();
+  Bool_t write(HParIo* io);
+  HDetGeomPar* createDetGeomPar(Text_t* name);
+  Bool_t hasChanged() {return changed;}
+  void setChanged(Bool_t f=kTRUE) {changed=f;}
+  void print();
+  ClassDef(HSpectrometer,0) // Class for the spectrometer configuration
+};
+
+#endif  /* !HSPECTROMETER_H */
+

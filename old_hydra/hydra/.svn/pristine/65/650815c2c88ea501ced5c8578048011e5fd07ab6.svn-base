@@ -1,0 +1,18 @@
+#include "hhodohit.h"
+
+//*-- Author : B Spruck
+//*-- Craeted 30.3.2006
+
+//_HADES_CLASS_DESCRIPTION 
+/////////////////////////////////////////////////////////////
+//  HHodoHit
+//
+//  This class contains HODO hit data
+//
+/////////////////////////////////////////////////////////////
+
+
+ClassImp(HHodoHit)
+
+
+

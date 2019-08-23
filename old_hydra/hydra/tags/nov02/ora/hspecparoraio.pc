@@ -1,0 +1,345 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Created : 31/05/2002
+//*-- Modified : 05/07/2002 by I.Koenig
+
+//////////////////////////////////////////////////////////////////////////////
+// HSpecParOraIo
+//
+// Interface class to database Oracle for input/output of parameters needed
+// by the Spectrometer
+// (uses the Oracle C/C++ precompiler)
+//
+//////////////////////////////////////////////////////////////////////////////
+
+#include "hspecparoraio.h"
+#include "hspecgeompar.h"
+#include "hgeomcompositevolume.h"
+#include "TClass.h"
+#include <iostream.h>
+#include <unistd.h>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// SQL Communications Area
+#include <sqlca.h>
+
+ClassImp(HSpecParOraIo)
+
+#define NMAX_TARG 100
+
+HSpecParOraIo::HSpecParOraIo(HOraConn* pC) : HDetParOraIo(pC) {
+  // constructor
+  // sets the name of the I/O class "HSpecParIo"
+  // gets the pointer to the connection class
+  fName="HSpecParIo";
+  geomContextId=-1;
+  targetType=-1;
+  alignmentVersion=-1;
+  geomVersDate[0]=-1;
+  geomVersDate[1]=-1;
+  targetSetupDate[0]=-1;
+  targetSetupDate[1]=-1;
+}
+
+Bool_t HSpecParOraIo::init(HParSet* pPar,Int_t* set) {
+  // calls the special read-function for the parameter container
+  const Text_t* name=pPar->IsA()->GetName();
+  if (strcmp(name,"HSpecGeomPar")==0) return read(((HSpecGeomPar*)pPar),set);
+  cout<<"initialization of "<<pPar->GetName()<<" not possible from Oracle!"<<endl;
+  return kFALSE;
+}
+
+Int_t HSpecParOraIo::write(HParSet* pPar) {
+  // calls the appropriate write function for the parameter container
+  const Text_t* name=pPar->IsA()->GetName();
+  if (strcmp(name,"HSpecGeomPar")==0) return writeAlignment((HSpecGeomPar*)pPar);
+  cout<<"No write-interface to Oracle for parameter container "
+      <<pPar->GetName()<<endl;
+  return 0;
+}
+
+Bool_t HSpecParOraIo::read(HSpecGeomPar* pPar, Int_t* set) {
+  // reads the geometry of the cave, the sectors and the target(s)
+  Int_t runStart=getRunStart(pPar);
+  Int_t geomVers=getIdealGeomVersion();
+  Int_t actTargetType=getTargetVersion(pPar,runStart);
+  if (runStart==-1 || geomVers==-1 || actTargetType==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  TList geomObjects;
+  if (pPar->isFirstInitialization()) {
+    if (!pPar->getCave()) {
+      HGeomVolume v;
+      v.SetName("CAVE");
+      pPar->addCave(&v);
+      geomObjects.Add(new HOraGeomObj("CAVE",pPar->getCave(),'R',0,1));
+    }
+    for(Int_t i=0;i<pPar->getNumSectors();i++) {
+      if (!pPar->getSector(i)) {     
+        HGeomVolume v;
+        TString s("SEC");
+        s+=(i+1);
+        v.SetName(s.Data());
+        v.setMother("CAVE");
+        pPar->addSector(&v);
+        geomObjects.Add(new HOraGeomObj(s,pPar->getSector(i),'R',0,1));
+      }
+    }
+  }
+  Bool_t allFound=kTRUE;
+  if (pPar->isFirstInitialization() || targetType<0 || actTargetType!= targetType) {
+    pPar->clear();
+    //cout<<"actTargetType: "<<actTargetType<<"   targetType: "<<targetType<<endl;
+    targetType=actTargetType;
+    Int_t numTargets=readTargetNames(pPar);
+    for(Int_t i=0;i<numTargets;i++) {
+      HGeomVolume* v=pPar->getTarget(i);
+      geomObjects.Add(new HOraGeomObj(v->GetName(),v,'R',0,targetType));
+    }
+    pPar->setInputVersion(getActRunId(),inputNumber);
+    allFound=readIdealGeomTransform(&geomObjects,geomVers);
+    if (!readGeomPoints(&geomObjects,geomVers)) allFound=kFALSE;
+    if (allFound) cout<<pPar->GetName()<<": Ideal geometry initialized from Oracle\n";
+    alignmentVersion=getAlignmentVersion(pPar,runStart);
+    if (alignmentVersion>0) {
+      TIter next(&geomObjects);
+      Int_t n=readAlignment(&geomObjects);
+      if (n==0) allFound=kFALSE;
+      else cout<<pPar->GetName()<<": Target alignment read from Oracle\n";
+    }
+    pPar->setChanged();
+    if (allFound) pPar->setNotFirstInit();
+  } else {
+    Int_t actAlignmentVersion=getAlignmentVersion(pPar,runStart);
+    if (actAlignmentVersion != alignmentVersion) {
+      //cout<<"actAlignmentVersion:"<<actAlignmentVersion<<"   alignmentVersion: "<<alignmentVersion<<endl;
+      alignmentVersion=actAlignmentVersion;
+      pPar->setInputVersion(getActRunId(),inputNumber);
+      Int_t numTargets=pPar->getNumTargets();
+      for(Int_t i=0;i<numTargets;i++) {
+        HGeomVolume* v=pPar->getTarget(i);
+        geomObjects.Add(new HOraGeomObj(v->GetName(),v,'R',0,targetType));
+      }
+      allFound=readIdealGeomTransform(&geomObjects,geomVers);
+      if (allFound) {
+        if (alignmentVersion>0) {
+          Int_t n=readAlignment(&geomObjects);
+          if (n==0) allFound=kFALSE;
+          else cout<<pPar->GetName()<<": Target alignment read from Oracle\n";
+        } else cout<<pPar->GetName()<<": Ideal target position read from Oracle\n";
+        pPar->setChanged();
+      }
+    }
+  }
+  return allFound;
+}
+
+
+Int_t HSpecParOraIo::getTargetVersion(HSpecGeomPar* pPar,Int_t runStart) {
+  if (geomContextId==-1)
+    geomContextId=getContextId("HDetGeomPar","GeomProduction");
+  if (geomContextId==-1) return -1;
+  if (targetType>1 && runStart>=targetSetupDate[0] && runStart<=targetSetupDate[1])
+    return targetType;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int context;
+    int obj_type=-1;
+    double since;
+    double until;
+  EXEC SQL END DECLARE SECTION;
+  context=geomContextId;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getVersion(HParOraSet*,Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT geom_obj_type_id,     
+                  hdate.to_ansitime(valid_since),
+                  hdate.to_ansitime(valid_until)
+           INTO :obj_type, :since, :until
+           FROM hanal.target_setup_at_date
+           WHERE context_id = :context;
+  targetSetupDate[0]=since; 
+  targetSetupDate[1]=until; 
+  if (strcmp(getExpLocation(),"VIRTUAL")==0) {
+    geomVersDate[0]=since;
+    geomVersDate[1]=until;
+  } else {
+    geomVersDate[0]=-1;
+    geomVersDate[1]=-1;
+  }
+  return obj_type;
+notfound:
+  targetType=-1;
+  targetSetupDate[0]=-1;
+  targetSetupDate[1]=-1;
+  alignmentVersion=-1;
+  geomVersDate[0]=-1;
+  geomVersDate[1]=-1;
+  return -1;
+}
+
+
+Int_t HSpecParOraIo::readTargetNames(HSpecGeomPar* pPar) {
+  EXEC SQL BEGIN DECLARE SECTION;
+    int     otype;
+    varchar oname[NMAX_TARG][9];
+  EXEC SQL END DECLARE SECTION;
+  otype=(int)targetType;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getVersion(HParOraSet*,Int_t)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT obj_name_short INTO :oname
+           FROM hades_geom.geom_objects
+           WHERE obj_type = :otype AND obj_name_short LIKE 'TARG%';
+  Int_t numTargets=sqlca.sqlerrd[2];
+  pPar->createTargets(numTargets);
+  for(Int_t i=0;i<numTargets;i++) {
+    HGeomVolume v;
+    oname[i].arr[oname[i].len]='\0';
+    v.SetName((char*)(oname[i].arr));
+    pPar->addTarget(&v);
+  }    
+  return numTargets;
+}
+
+
+Int_t HSpecParOraIo::getAlignmentVersion(HSpecGeomPar* pPar,Int_t runStart) {
+  Int_t version=0;
+  if (!(strcmp(getExpLocation(),"VIRTUAL")==0)) {
+    if (alignmentVersion > 0 && runStart>=geomVersDate[0] && runStart<=geomVersDate[1])
+      version=alignmentVersion;
+    else {
+      geomVersDate[0]=-1;
+      geomVersDate[1]=-1;
+      EXEC SQL BEGIN DECLARE SECTION;
+        int    context;
+        int    vers=-1;
+        double since;
+        double until;
+      EXEC SQL END DECLARE SECTION;
+      EXEC SQL WHENEVER SQLERROR DO showSqlError("readGeomVersion(HParSet*)");
+      EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+      context=(int)geomContextId;
+      EXEC SQL SELECT version,
+                      hdate.to_ansitime(valid_since),
+                      hdate.to_ansitime(valid_until)
+               INTO :vers, :since, :until
+               FROM hanal.alignment_vers_at_date
+               WHERE detector_name = 'TARGET' and context_id = :context;
+      geomVersDate[0]=since;
+      geomVersDate[1]=until;
+      version=vers;
+    }
+  }
+  return version;
+notfound:
+  return 0;  
+}
+
+
+Int_t HSpecParOraIo::readAlignment(TList* geomObjects) {
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    int vers;
+    struct {
+      double r11;
+      double r12;
+      double r13;
+      double r21;
+      double r22;
+      double r23;
+      double r31;
+      double r32;
+      double r33;
+      double t1;
+      double t2;
+      double t3;
+    } tr;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readGeomPoints(TList*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE talign_cursor CURSOR FOR
+    SELECT r11, r12, r13, r21, r22, r23, r31, r32, r33,
+           px, py, pz
+    FROM hanal.alignment_data
+    WHERE geom_obj_id = :id and vers_id = :vers;
+  vers=(int)alignmentVersion;
+  TIter next(geomObjects);
+  HOraGeomObj* o;
+  Double_t r[9];
+  Double_t t[3];
+  Int_t n=0;
+  while ((o=(HOraGeomObj*)next())) {
+    const char* oName=o->GetName();
+    if (oName[0]=='T' && (id=(int)o->objId)!=-1) {
+      EXEC SQL OPEN talign_cursor;
+      EXEC SQL FETCH talign_cursor INTO :tr;
+      if (sqlca.sqlerrd[2]==1) {
+        r[0]=tr.r11;
+        r[1]=tr.r12;
+        r[2]=tr.r13;
+        r[3]=tr.r21;
+        r[4]=tr.r22;
+        r[5]=tr.r23;
+        r[6]=tr.r31;
+        r[7]=tr.r32;
+        r[8]=tr.r33;
+        t[0]=tr.t1;
+        t[1]=tr.t2;
+        t[2]=tr.t3;
+        HGeomVolume* vol=(HGeomVolume*)(o->pObj);
+        HGeomTransform& tp=vol->getTransform();
+        tp.setTransVector(t);
+        tp.setRotMatrix(r);
+        n++;
+      }
+    }
+  }
+  EXEC SQL CLOSE talign_cursor;
+  return n;
+}
+
+
+Int_t HSpecParOraIo::writeAlignment(HSpecGeomPar* pPar) {
+  Int_t runStart=getRunStart(pPar);
+  if (runStart==-1) return -1;
+  Int_t version=getAlignmentOutputVersion(pPar,pPar->getParamContext());
+  if (version==-1) return -1;
+  Int_t objType=getTargetType(pPar->getParamContext());
+  if (objType==-1) return -1;
+  Int_t n=0;
+  Bool_t rc=kTRUE;
+  for(Int_t i=0;i<pPar->getNumTargets();i++) {
+    HGeomVolume* pVol=pPar->getTarget(i);
+    if (!pVol) continue;
+    if ((rc=writeTransform(version,pVol->GetName(),objType,pVol->getTransform()))) n++;
+    else break;
+  }
+  if (rc && n>0) {
+    cout<<"Target alignment:  "<<n<<" rows inserted\n";
+    commit();
+  }
+  pPar->setChanged(kFALSE);
+  return version;
+}
+
+
+Int_t HSpecParOraIo::getTargetType(const char* contextName) {
+  Int_t contextId=getContextId("HDetGeomPar",contextName);
+  if (contextId==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int context;
+    int otype=-1;
+  EXEC SQL END DECLARE SECTION;
+  context=contextId;
+  EXEC SQL WHENEVER SQLERROR DO
+    showSqlError("getTargetType(const char*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT geom_obj_type_id INTO :otype
+           FROM hanal.target_setup_at_date
+           WHERE context_id = :context;
+  return otype; 
+notfound:
+  return -1;  
+}

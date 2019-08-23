@@ -1,0 +1,23 @@
+[Parameters for analysis]
+
+#### ora,ascii,root
+FirstInput  =ascii
+SecondInput =root
+
+RemoteEventServer = 0
+RemoteEventServerAddress =lxg0417
+
+#### param file 1+2
+ParametersFileName =/misc/kempter/HYDRA/local/hadesgo4/onlinehists.txt
+ParametersFileName2 =/u/hadesdst/nov01/gen3/params/allParamTest.root
+##############################
+#HLD dir  =/misc/kempter/geant
+#HLD file =xx01341025838.hld
+HLD dir  =/misc/hadeb03/oct02/hld
+HLD file =be02311235049.hld
+#############################
+Reference runID = 1
+#Reference runID = 1007691649
+#Reference runID = 990584246
+
+Output File =/tmp/go4test.root

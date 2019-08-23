@@ -1,0 +1,13 @@
+#pragma implementation
+#include "htofinoshowermapcell.h"
+
+///////////////////////////////////////////////////////////////////////
+// HTofinoShowerMapCell
+//
+// HTofinoShowerMapCell contains information about tofino detector
+// attached to one pad in shower detector 
+//
+//////////////////////////////////////////////////////////////////////
+
+ClassImp(HTofinoShowerMapCell)
+

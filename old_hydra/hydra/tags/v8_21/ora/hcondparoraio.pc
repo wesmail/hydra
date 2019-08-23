@@ -1,0 +1,193 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Created : 20/11/2002 by I.Koenig
+//*-- Modified : 19/10/2005 by I.Koenig
+
+//_HADES_CLASS_DESCRIPTION 
+//////////////////////////////////////////////////////////////////////////////
+// HCondParOraIo
+//
+// Interface class to database Oracle for input/output of parameters derived
+// from HParCond
+//
+//////////////////////////////////////////////////////////////////////////////
+
+#include "hcondparoraio.h"
+#include "hparcond.h"
+#include "hparamlist.h"
+#include "TROOT.h"
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// Include the SQL Communications Area
+#include <sqlca.h>
+
+ClassImp(HCondParOraIo)
+
+#define LOB_BUFSIZE 32512
+
+HCondParOraIo::HCondParOraIo(HOraConn* pC) : HDetParOraIo(pC) {
+  // constructor
+  // sets the name of the I/O class "HCondParIo"
+  // gets the pointer to the connection class
+  fName="HCondParIo";
+}
+
+Bool_t HCondParOraIo::init(HParSet* pPar,Int_t* set) {
+  // calls HDetParOraIo"::readCond(HParCond*,Int_t*)
+  if (pPar->InheritsFrom("HParCond")) return readCond((HParCond*)pPar,set);
+  Error("HCondParOraIo::init(HParSet*,Int_t*)",
+        "%s does not inherit from HParCond",pPar->GetName());
+  return kFALSE;
+}
+
+Int_t HCondParOraIo::write(HParSet* pPar) {
+  // calls HDetParOraIo"::writeCond(HParCond*)
+  Int_t runStart=getRunStart(pPar);
+  if (runStart<=0) return -1;
+  if (pPar->InheritsFrom("HParCond")) return writeCond((HParCond*)pPar);
+  Error("HCondParOraIo::write(HParSet*)",
+        "%s does not inherit from HParCond",pPar->GetName());
+  return -1;
+}
+
+Bool_t HCondParOraIo::readFromLoadingTable(HParCond* pPar,Int_t version) {
+  // reads the analysis parameters from the LOAD table and fills the container
+  EXEC SQL BEGIN DECLARE SECTION;
+    typedef struct {
+      unsigned short len;
+      unsigned char  arr[2000];
+    } vraw;
+    EXEC SQL TYPE vraw IS VARRAW(2002);
+    int vers;
+    varchar       p_name[85];
+    varchar       p_type[85];
+    vraw          p_value;
+    int           p_blob;
+    int           p_class_vers;
+    int           p_streamer;
+    short         p_value_Ind;
+    short         p_blob_Ind;
+    short         p_class_vers_Ind;
+    short         p_streamer_Ind;
+  EXEC SQL END DECLARE SECTION;
+  vers=version;
+  HParamList paramList;
+  Bool_t rc=kTRUE;
+  Int_t n=0;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL DECLARE gplraw_cursor CURSOR FOR
+           SELECT param_name, param_value_type, param_value, 
+                  blob_id, class_version, streamerinfo_id
+           FROM hanal.genparam_values_load_ana
+           WHERE param_vers_load_id = :vers;
+  EXEC SQL OPEN gplraw_cursor;
+  EXEC SQL WHENEVER NOT FOUND DO break;
+  for (;rc;) {
+    EXEC SQL FETCH gplraw_cursor
+             INTO :p_name, :p_type, :p_value:p_value_Ind,
+                  :p_blob:p_blob_Ind, :p_class_vers:p_class_vers_Ind,
+                  :p_streamer:p_streamer_Ind;
+    p_name.arr[p_name.len]='\0';
+    p_type.arr[p_type.len]='\0';
+    HParamObj* o=new HParamObj((Char_t*)(p_name.arr));
+    o->setParamType((Char_t*)(p_type.arr));
+    if (p_blob_Ind!=-1) {
+      rc=readLoadBlob(o,p_blob,kFALSE);
+      if (rc&&p_streamer_Ind!=-1) {
+        rc=readLoadBlob(o,p_streamer,kTRUE);
+      }
+      if (p_class_vers_Ind!=-1) {
+        o->setClassVersion(p_class_vers);
+      }
+    } else if (p_value_Ind!=-1) {
+      UChar_t* v=new UChar_t[p_value.len];
+      memcpy(v,p_value.arr,p_value.len);
+      o->setParamValue(v,p_value.len);
+    } else {
+      Error("readFromLoadingTable(HParCond*,Int_t*)",
+            "Data undefined for parameter %s",o->GetName());
+      rc=kFALSE;
+    }
+    if (rc) { 
+      paramList.getList()->Add(o);
+      n++;
+    }
+  }
+  EXEC SQL CLOSE gplraw_cursor;
+  if (rc&&n>0) {
+    rc=pPar->getParams(&paramList);
+  }
+  if (rc) {
+    pPar->setInputVersion(version,inputNumber);
+    setChanged(pPar);
+    cout<<pPar->GetName()<<" initialized from Load Table"<<'\n';
+  } else {
+    pPar->setInputVersion(-1,inputNumber);
+  }
+  return rc;
+errorfound:
+  showSqlError("readFromLoadingTable");
+  return kFALSE;
+}
+
+Bool_t HCondParOraIo::readLoadBlob(HParamObj* obj,Int_t lobId,Bool_t isStreamerInfo) {
+  // reads the BLOB from the LOAD table
+  EXEC SQL BEGIN DECLARE SECTION;
+    int           id;
+    unsigned int  loblength;
+    unsigned int  amount;
+    unsigned int  offset;
+    unsigned char buffer[LOB_BUFSIZE];
+    varchar       root_vers[83];
+    EXEC SQL VAR buffer IS RAW(LOB_BUFSIZE);
+  EXEC SQL END DECLARE SECTION;
+  id=lobId;
+  amount=LOB_BUFSIZE;
+  UChar_t* pBlob=0;
+  UInt_t amountRead=0;
+  root_vers.len=83;
+  EXEC SQL WHENEVER SQLERROR GOTO notfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  if (!isStreamerInfo) {
+    EXEC SQL EXECUTE
+      BEGIN
+        hanal.hgenpar_ana.read_load_blob(:id,:amount,:loblength,:buffer);
+      END;
+    END-EXEC;
+    pBlob=obj->setLength(loblength);
+  } else {
+    EXEC SQL EXECUTE
+      BEGIN
+        hanal.hgenpar_ana.read_load_streamerinfo(:id,:amount,:loblength,:buffer,:root_vers);
+      END;
+    END-EXEC;
+    pBlob=obj->setStreamerInfoSize(loblength);
+    root_vers.arr[root_vers.len]='\0';
+    if (strcmp(gROOT->GetVersion(),(char*)root_vers.arr)!=0) {
+      Warning("readLoadBlob",
+              "Parameter %s\n  ROOT version of streamer info = %s, current ROOT version = %s \n",
+              obj->GetName(),root_vers.arr,gROOT->GetVersion());
+    }
+  }
+  amountRead=amount;
+  memcpy((UChar_t*)pBlob,buffer,amount);
+  while (amountRead<loblength) {
+    amount= (loblength>LOB_BUFSIZE) ? LOB_BUFSIZE : loblength ;
+    offset=amountRead+1;
+    EXEC SQL EXECUTE
+      BEGIN
+        hanal.hgenpar_ana.read_next_buffer(:amount,:offset,:buffer);
+      END;
+    END-EXEC;
+    memcpy((UChar_t*)(&pBlob[amountRead]),buffer,amount);
+    amountRead+=amount;
+  }
+  return kTRUE;
+notfound:
+  showSqlError("readLoadBlob");
+  Error("readLoadBlob","Blob %i not read",lobId);
+  return kFALSE;
+}

@@ -1,0 +1,204 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Modified : 05/07/2001
+
+/////////////////////////////////////////////////////////////
+// HOraConn
+//
+// Connection class to database Oracle 
+// (uses the Oracle C/C++ precompiler)
+//
+/////////////////////////////////////////////////////////////
+
+#include "horaconn.h"
+#include "hades.h"
+#include "hruntimedb.h"
+#include <stdio.h>
+#include <iostream.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+// Oracle communication area
+#include <oraca.h>
+// SQL Communications Area
+#include <sqlca.h>
+ 
+ClassImp(HOraConn)
+
+HOraConn::HOraConn() {
+  // default constructor
+  // defines default values for user ("hades_ana") and the database
+  //   ("db-hades.gsi.de", the HADES Oracle 8 database on Linux at GSI)
+  // User "hades" has Readonly access to the Oracle tables.
+  // The connection to Oracle is not opened!
+  strcpy(dbName,"db-hades.gsi.de");
+  strcpy(userName,"hades_ana");
+  isConnected=kFALSE;
+}
+
+
+HOraConn::~HOraConn() {
+  // default destructor (closes connection)
+  close();
+}
+
+
+Bool_t HOraConn::open() {
+  // opens default connection with readonly access
+  char* password = new char[9];
+  strcpy(password,"hades");
+  Bool_t rc=openConnection(password);
+  if (!rc) close();
+  return rc;
+}
+
+Bool_t HOraConn::open(char *uName) {
+  // opens connection to database Hades for user given by name
+  // asks for password
+  strncpy(userName,uName,20);
+  char* password=getPassword();
+  Bool_t rc=openConnection(password);
+  if (!rc) close();
+  return rc;
+}
+
+
+Bool_t HOraConn::open(char *dbN, char *uN) {
+  // opens connection to database with name dbName for user given by name
+  // asks for password
+  strncpy(dbName,dbN,20);
+  strncpy(userName,uN,20);
+  char* password=getPassword();
+  Bool_t rc=openConnection(password);
+  if (!rc) close();
+  return rc;
+}
+
+
+void HOraConn::close() {
+  // disconnects from ORACLE
+  // A transaction will be automatically rolled back,
+  // that means changes in the database are not stored
+  // without an explicit COMMIT 
+  EXEC SQL WHENEVER SQLERROR DO
+    showSqlError("ORACLE error in HOraConn::close():");
+  if (isConnected) {
+    EXEC SQL ROLLBACK RELEASE;
+    isConnected=kFALSE;
+    cout<<"connection to Oracle closed"<<endl;
+  }
+}
+
+
+void HOraConn::print() {
+  // prints information about the database connection
+  if (isConnected)
+    cout<<"Oracle-Database: "<<dbName<<"    Username: "<<userName<<'\n';
+  else cout<<"*** no connection to Oracle established  ***"<<'\n';
+}
+
+
+void HOraConn::showSqlError(char* msg) {
+  // shows SQL error messages 
+  cout << endl << msg << endl;
+  cout << sqlca.sqlerrm.sqlerrmc << endl;
+}
+
+
+char* HOraConn::getPassword() {
+  // asks for the password
+  char* passwd = new char[9];
+  char buf[9];
+  int ttyfd = 0;
+  struct termios tio, itio;
+  if ((ttyfd = std::open("/dev/tty", O_RDWR)) < 0) {
+    fprintf(stderr, "cannot open tty, using stdin\n");
+    ttyfd = 0;
+  }
+  if (tcgetattr(ttyfd, &tio) < 0) {
+    fprintf (stderr, "\nUnable to get terminal characteristics: ");
+    cout<<"enter password for user "<<userName<<" > ";
+    scanf("%[^\n]%*c",passwd);
+    return passwd; 
+  }
+  itio = tio;
+  tio.c_lflag &= ~(ECHO|ICANON);         
+  tcsetattr (ttyfd, TCSAFLUSH, &tio);
+  cout<<"enter password for user "<<userName<<" > ";
+  fgets(buf, 9, stdin);
+  tcsetattr (ttyfd, TCSAFLUSH, &itio);
+  //close(ttyfd);
+  sscanf(buf, "%s", passwd);
+  cout<<endl;
+  return passwd;
+}
+
+
+Bool_t HOraConn::openConnection(char* password) {
+  // opens connection (contains the SQL-statements)
+  if (isConnected) close();
+  char connId[60];
+  strcpy(connId,userName);
+  strcat(connId,"@");
+  strcat(connId,dbName);    // e.g."hades_ana@hadp"
+
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* uName;
+    char* pWord;
+  EXEC SQL END DECLARE SECTION;
+
+  uName=connId;
+  pWord=password;
+
+  EXEC SQL WHENEVER SQLERROR DO
+    showSqlError("ORACLE error in HOraConn::openConnection(...):");
+
+  EXEC SQL CONNECT :uName IDENTIFIED BY :pWord;
+
+  if (sqlca.sqlcode==0) isConnected=kTRUE;
+  else cout<<"*** Failed to connect to Oracle ***"<<endl;
+  delete password;
+  return isConnected; 
+}
+
+
+Int_t HOraConn::getRunStart(Int_t id) {
+  // Gets the actual run id from the current event file and compares it with
+  // the last used actRunId for fetching data.
+  // If they are different, the run start time (converted to ansi C time) is
+  // read from Oracle and stored together with the run id in the data members
+  // run_id and runStart
+  if (id==actRunId && runStart!=0) return runStart;
+  actRunId=id;
+  runStart=-1;
+
+  EXEC SQL BEGIN DECLARE SECTION;
+    int ri; 
+    int rs;
+  EXEC SQL END DECLARE SECTION;
+
+  EXEC SQL WHENEVER SQLERROR DO
+    showSqlError("HDetParOraIo::getRunStart(Int_t): sql error");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+
+  ri = actRunId;
+  EXEC SQL EXECUTE
+    BEGIN
+      hades_oper.run_query.get_run_start(:ri,:rs);
+    END;
+  END-EXEC;
+
+  runStart=rs;
+  // cout<<"actRunId: "<<actRunId<<"   runStart: "<<runStart<<endl;
+  return runStart;
+
+notfound:
+  //  showSqlError("HDetParOraIo::getRunStart(Int_t): Run not found");
+  return -1; 
+}
+
+

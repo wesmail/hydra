@@ -1,0 +1,116 @@
+# default compiler is g++, 
+# redefine by setting environment variable HADCOMPILER
+
+ifdef HADCOMPILER
+COMPILER        = $(HADCOMPILER)
+else
+COMPILER	= g++
+endif
+
+# distributed compiling
+# if this feature is enabled, i.e. the variable DISTCC is defined
+# CXX is defined corespondingly 
+
+ifdef DISTCC
+CXX=$(DISTCC) $(COMPILER)
+else
+CXX=$(COMPILER)
+endif
+
+# default linker is g++, 
+# redefine by setting environment variable HADLINKER
+
+ifdef HADLINKER
+LD        = $(HADLINKER)
+else
+LD        = g++
+endif
+
+LDFLAGS		= -g 
+
+CINTINC		= -I$(HADDIR_BASE)/datasource \
+	          -I$(HADDIR_BASE)/datastruct \
+	  	  -I$(HADDIR_BASE)/eventhandling \
+	          -I$(HADDIR_BASE)/geometry  \
+	 	  -I$(HADDIR_BASE)/runtimedb \
+	 	  -I$(HADDIR_BASE)/util \
+                  -I$(HADDIR_BASE)/correlation \
+                  -I$(HADDIR_BASE)/geantutil \
+		  -I$(HADDIR_SIMULATION) \
+                  -I$(HADDIR_KICKPLANE) \
+                  -I$(HADDIR_MDCTRACKD) \
+                  -I$(HADDIR_MDCTRACKG) \
+                  -I$(HADDIR_MDCTRACKS) \
+		  -I$(HADDIR_MDCGARFIELD) \
+		  -I$(HADDIR_MDCPID) \
+		  -I$(HADDIR_MDCUTIL) \
+                  -I$(HADDIR_MDC) \
+                  -I$(HADDIR_PHYANA) \
+                  -I$(HADDIR_RICHUTIL) \
+                  -I$(HADDIR_RICH) \
+                  -I$(HADDIR_SHOWERTOFINO) \
+                  -I$(HADDIR_SHOWERUTIL) \
+                  -I$(HADDIR_SHOWER) \
+                  -I$(HADDIR_START) \
+                  -I$(HADDIR_TOFINO) \
+                  -I$(HADDIR_TOF) \
+                  -I$(HADDIR_WALL) \
+                  -I$(HADDIR_TRIGGER) \
+                  -I$(HADDIR_QA) \
+                  -I$(HADDIR_TRIGGERUTIL) \
+                  -I$(HADDIR_PID) \
+                  -I$(HADDIR_PIDUTIL) \
+		  -I$(HADDIR_ALIGNMENT) \
+		  -I$(HADDIR_TOOLS) \
+		  -I$(HADDIR_HYP) \
+		  -I$(HADDIR_PAIRS) \
+		  -I$(HADDIR_RPC) \
+		  -I$(HADDIR_HODO) 
+                  
+#                  -I$(HADDIR_ONLINE) \
+#                  -I$(HADDIR_REVT)
+
+ifdef ONLINEHYDRA
+	CINTINC	+= -I$(HADDIR_EVTSERVER) \
+                   -I$(CLIDIR)  
+endif
+ifdef ORACLE_HOME
+	CINTINC += -I$(HADDIR_ORA)
+	CINTINC += -I$(HADDIR_ORASIM)
+	CINTINC += -I$(HADDIR_ORAUTIL)
+endif
+
+# default compiler flags  
+# redefine by setting environment variable HADCOMPILERFLAGS
+ifdef HADCOMPILERFLAGS
+COMPILERFLAGS    = $(HADCOMPILERFLAGS)
+else
+COMPILERFLAGS    = -O2 -g -pipe -Wall -fPIC  -DR__GLIBC
+endif
+
+CXXFLAGS	= $(COMPILERFLAGS) \
+	 	  -DDEBUG_LEVEL=$(HDL)  \
+                  -I$(ROOTSYS)/include $(CINTINC)
+
+ifdef NOLIBNEW
+ROOTLIBS	=  $(shell root-config --nonew --libs)
+ROOTGLIBS   	=  $(shell root-config --nonew --glibs)
+else
+ROOTLIBS	=  $(shell root-config --libs)
+ROOTGLIBS   	=  $(shell root-config --glibs)
+endif
+
+#RINT		=  $(ROOTSYS)/src/RINT_G__Rint.o $(ROOTSYS)/src/RINT_Rint.o
+
+RINT		=  
+LIBS		=  $(ROOTLIBS)
+
+ifdef ONLINEHYDRA
+   LIBS		+= -L$(GSIDIR) -lhrevcli 
+endif
+
+GLIBS		=  $(LIBS) $(ROOTGLIBS)  
+SOEXT		=  so
+AEXT            =  a
+SOFLAGS		=  -shared -Wl,-soname,
+TEMPBASE        = /tmp/base_$(USER)

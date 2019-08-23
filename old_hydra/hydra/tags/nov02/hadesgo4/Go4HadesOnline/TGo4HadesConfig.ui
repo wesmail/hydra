@@ -1,0 +1,1139 @@
+<!DOCTYPE UI><UI version="3.0" stdsetdef="1">
+<class>TGo4HadesConfig</class>
+<widget class="QWidget">
+    <property name="name">
+        <cstring>TGo4HadesConfig</cstring>
+    </property>
+    <property name="geometry">
+        <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>618</width>
+            <height>759</height>
+        </rect>
+    </property>
+    <property name="sizePolicy">
+        <sizepolicy>
+            <hsizetype>5</hsizetype>
+            <vsizetype>5</vsizetype>
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+        </sizepolicy>
+    </property>
+    <property name="paletteForegroundColor">
+        <color>
+            <red>0</red>
+            <green>0</green>
+            <blue>0</blue>
+        </color>
+    </property>
+    <property name="caption">
+        <string>Hades Configuration</string>
+    </property>
+    <widget class="QGroupBox">
+        <property name="name">
+            <cstring>General_s</cstring>
+        </property>
+        <property name="enabled">
+            <bool>true</bool>
+        </property>
+        <property name="geometry">
+            <rect>
+                <x>30</x>
+                <y>10</y>
+                <width>560</width>
+                <height>729</height>
+            </rect>
+        </property>
+        <property name="sizePolicy">
+            <sizepolicy>
+                <hsizetype>0</hsizetype>
+                <vsizetype>0</vsizetype>
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+            </sizepolicy>
+        </property>
+        <property name="minimumSize">
+            <size>
+                <width>100</width>
+                <height>100</height>
+            </size>
+        </property>
+        <property name="font">
+            <font>
+                <pointsize>10</pointsize>
+            </font>
+        </property>
+        <property name="title">
+            <string>General Specs</string>
+        </property>
+        <widget class="QLayoutWidget">
+            <property name="name">
+                <cstring>Layout53</cstring>
+            </property>
+            <property name="geometry">
+                <rect>
+                    <x>11</x>
+                    <y>20</y>
+                    <width>220</width>
+                    <height>689</height>
+                </rect>
+            </property>
+            <vbox>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>0</number>
+                </property>
+                <property name="spacing">
+                    <number>6</number>
+                </property>
+                <widget class="QLayoutWidget">
+                    <property name="name">
+                        <cstring>Layout13</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>6</number>
+                        </property>
+                        <widget class="QSpinBox" row="0" column="0">
+                            <property name="name">
+                                <cstring>SpinBox3</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                        </widget>
+                        <widget class="QLabel" row="1" column="1">
+                            <property name="name">
+                                <cstring>TextLabel2</cstring>
+                            </property>
+                            <property name="font">
+                                <font>
+                                    <pointsize>9</pointsize>
+                                </font>
+                            </property>
+                            <property name="text">
+                                <string>Refresh rate (nevt)</string>
+                            </property>
+                        </widget>
+                        <widget class="QSpinBox" row="1" column="0">
+                            <property name="name">
+                                <cstring>SpinBox2</cstring>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy>
+                                    <hsizetype>0</hsizetype>
+                                    <vsizetype>0</vsizetype>
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                        </widget>
+                        <widget class="QLabel" row="0" column="1">
+                            <property name="name">
+                                <cstring>TextLabel1</cstring>
+                            </property>
+                            <property name="font">
+                                <font>
+                                    <pointsize>9</pointsize>
+                                </font>
+                            </property>
+                            <property name="text">
+                                <string>Tree Size (kBytes)</string>
+                            </property>
+                        </widget>
+                    </grid>
+                </widget>
+                <spacer>
+                    <property name="name">
+                        <cstring>Spacer7</cstring>
+                    </property>
+                    <property name="orientation">
+                        <enum>Vertical</enum>
+                    </property>
+                    <property name="sizeType">
+                        <enum>Expanding</enum>
+                    </property>
+                    <property name="sizeHint">
+                        <size>
+                            <width>20</width>
+                            <height>16</height>
+                        </size>
+                    </property>
+                </spacer>
+                <widget class="QLayoutWidget">
+                    <property name="name">
+                        <cstring>Layout47</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>6</number>
+                        </property>
+                        <widget class="QLayoutWidget" row="2" column="0">
+                            <property name="name">
+                                <cstring>Layout38</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>6</number>
+                                </property>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>TextLabel2_2</cstring>
+                                    </property>
+                                    <property name="text">
+                                        <string>maxrate</string>
+                                    </property>
+                                </widget>
+                                <widget class="QSpinBox">
+                                    <property name="name">
+                                        <cstring>maxratespin</cstring>
+                                    </property>
+                                    <property name="maxValue">
+                                        <number>10000</number>
+                                    </property>
+                                    <property name="minValue">
+                                        <number>100</number>
+                                    </property>
+                                    <property name="lineStep">
+                                        <number>100</number>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                        <widget class="QLayoutWidget" row="0" column="0">
+                            <property name="name">
+                                <cstring>Layout17</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>6</number>
+                                </property>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>TextLabel1_3</cstring>
+                                    </property>
+                                    <property name="text">
+                                        <string>nLoop</string>
+                                    </property>
+                                </widget>
+                                <widget class="QSpinBox">
+                                    <property name="name">
+                                        <cstring>nLoopspin</cstring>
+                                    </property>
+                                    <property name="maxValue">
+                                        <number>10000</number>
+                                    </property>
+                                    <property name="minValue">
+                                        <number>1</number>
+                                    </property>
+                                    <property name="lineStep">
+                                        <number>10</number>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                        <widget class="QLayoutWidget" row="1" column="0">
+                            <property name="name">
+                                <cstring>Layout37</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>6</number>
+                                </property>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>TextLabel1_2</cstring>
+                                    </property>
+                                    <property name="text">
+                                        <string>sleep</string>
+                                    </property>
+                                </widget>
+                                <widget class="QSpinBox">
+                                    <property name="name">
+                                        <cstring>sleepspin</cstring>
+                                    </property>
+                                    <property name="maxValue">
+                                        <number>1000</number>
+                                    </property>
+                                    <property name="lineStep">
+                                        <number>10</number>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                    </grid>
+                </widget>
+                <spacer>
+                    <property name="name">
+                        <cstring>Spacer5</cstring>
+                    </property>
+                    <property name="orientation">
+                        <enum>Vertical</enum>
+                    </property>
+                    <property name="sizeType">
+                        <enum>Expanding</enum>
+                    </property>
+                    <property name="sizeHint">
+                        <size>
+                            <width>20</width>
+                            <height>16</height>
+                        </size>
+                    </property>
+                </spacer>
+                <widget class="QLayoutWidget">
+                    <property name="name">
+                        <cstring>Layout48</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>6</number>
+                        </property>
+                        <widget class="QLayoutWidget" row="5" column="0">
+                            <property name="name">
+                                <cstring>Layout19_5</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>6</number>
+                                </property>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>TextLabel3_5</cstring>
+                                    </property>
+                                    <property name="text">
+                                        <string>TofinoRefresh</string>
+                                    </property>
+                                </widget>
+                                <widget class="QSpinBox">
+                                    <property name="name">
+                                        <cstring>tofinorefreshspin</cstring>
+                                    </property>
+                                    <property name="maxValue">
+                                        <number>10000</number>
+                                    </property>
+                                    <property name="minValue">
+                                        <number>100</number>
+                                    </property>
+                                    <property name="lineStep">
+                                        <number>100</number>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                        <widget class="QLayoutWidget" row="6" column="0">
+                            <property name="name">
+                                <cstring>Layout19_6</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>6</number>
+                                </property>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>TextLabel3_6</cstring>
+                                    </property>
+                                    <property name="text">
+                                        <string>ShowerRefresh</string>
+                                    </property>
+                                </widget>
+                                <widget class="QSpinBox">
+                                    <property name="name">
+                                        <cstring>showerrefreshspin</cstring>
+                                    </property>
+                                    <property name="maxValue">
+                                        <number>10000</number>
+                                    </property>
+                                    <property name="minValue">
+                                        <number>100</number>
+                                    </property>
+                                    <property name="lineStep">
+                                        <number>100</number>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                        <widget class="QLayoutWidget" row="2" column="0">
+                            <property name="name">
+                                <cstring>Layout19_2</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>6</number>
+                                </property>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>TextLabel3_2</cstring>
+                                    </property>
+                                    <property name="text">
+                                        <string>RichRefresh</string>
+                                    </property>
+                                </widget>
+                                <widget class="QSpinBox">
+                                    <property name="name">
+                                        <cstring>richrefreshspin</cstring>
+                                    </property>
+                                    <property name="maxValue">
+                                        <number>10000</number>
+                                    </property>
+                                    <property name="minValue">
+                                        <number>100</number>
+                                    </property>
+                                    <property name="lineStep">
+                                        <number>100</number>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                        <widget class="QLayoutWidget" row="4" column="0">
+                            <property name="name">
+                                <cstring>Layout19_4</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>6</number>
+                                </property>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>TextLabel3_4</cstring>
+                                    </property>
+                                    <property name="text">
+                                        <string>TofRefresh</string>
+                                    </property>
+                                </widget>
+                                <widget class="QSpinBox">
+                                    <property name="name">
+                                        <cstring>tofrefreshspin</cstring>
+                                    </property>
+                                    <property name="maxValue">
+                                        <number>10000</number>
+                                    </property>
+                                    <property name="minValue">
+                                        <number>100</number>
+                                    </property>
+                                    <property name="lineStep">
+                                        <number>100</number>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                        <widget class="QLayoutWidget" row="1" column="0">
+                            <property name="name">
+                                <cstring>Layout19</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>6</number>
+                                </property>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>TextLabel3</cstring>
+                                    </property>
+                                    <property name="text">
+                                        <string>StartRefresh</string>
+                                    </property>
+                                </widget>
+                                <widget class="QSpinBox">
+                                    <property name="name">
+                                        <cstring>startrefreshspin</cstring>
+                                    </property>
+                                    <property name="maxValue">
+                                        <number>10000</number>
+                                    </property>
+                                    <property name="minValue">
+                                        <number>100</number>
+                                    </property>
+                                    <property name="lineStep">
+                                        <number>100</number>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                        <widget class="QLayoutWidget" row="3" column="0">
+                            <property name="name">
+                                <cstring>Layout19_3</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>6</number>
+                                </property>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>TextLabel3_3</cstring>
+                                    </property>
+                                    <property name="text">
+                                        <string>MdcRefresh</string>
+                                    </property>
+                                </widget>
+                                <widget class="QSpinBox">
+                                    <property name="name">
+                                        <cstring>mdcrefreshspin</cstring>
+                                    </property>
+                                    <property name="maxValue">
+                                        <number>10000</number>
+                                    </property>
+                                    <property name="minValue">
+                                        <number>100</number>
+                                    </property>
+                                    <property name="lineStep">
+                                        <number>100</number>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                        <widget class="QLayoutWidget" row="0" column="0">
+                            <property name="name">
+                                <cstring>Layout18</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>6</number>
+                                </property>
+                                <widget class="QLabel">
+                                    <property name="name">
+                                        <cstring>TextLabel2_3</cstring>
+                                    </property>
+                                    <property name="text">
+                                        <string>Triggerrefresh</string>
+                                    </property>
+                                </widget>
+                                <widget class="QSpinBox">
+                                    <property name="name">
+                                        <cstring>triggerrefreshspin</cstring>
+                                    </property>
+                                    <property name="maxValue">
+                                        <number>10000</number>
+                                    </property>
+                                    <property name="minValue">
+                                        <number>100</number>
+                                    </property>
+                                    <property name="lineStep">
+                                        <number>100</number>
+                                    </property>
+                                </widget>
+                            </hbox>
+                        </widget>
+                    </grid>
+                </widget>
+                <spacer>
+                    <property name="name">
+                        <cstring>Spacer6</cstring>
+                    </property>
+                    <property name="orientation">
+                        <enum>Vertical</enum>
+                    </property>
+                    <property name="sizeType">
+                        <enum>Expanding</enum>
+                    </property>
+                    <property name="sizeHint">
+                        <size>
+                            <width>20</width>
+                            <height>206</height>
+                        </size>
+                    </property>
+                </spacer>
+                <widget class="QLayoutWidget">
+                    <property name="name">
+                        <cstring>Layout40</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>6</number>
+                        </property>
+                        <widget class="QPushButton" row="0" column="0">
+                            <property name="name">
+                                <cstring>PushButton2</cstring>
+                            </property>
+                            <property name="text">
+                                <string>get Configuration</string>
+                            </property>
+                        </widget>
+                        <widget class="QPushButton" row="1" column="0">
+                            <property name="name">
+                                <cstring>PushButton3</cstring>
+                            </property>
+                            <property name="text">
+                                <string>submit Configuration</string>
+                            </property>
+                        </widget>
+                    </grid>
+                </widget>
+            </vbox>
+        </widget>
+        <spacer>
+            <property name="name">
+                <cstring>Spacer12</cstring>
+            </property>
+            <property name="orientation">
+                <enum>Horizontal</enum>
+            </property>
+            <property name="sizeType">
+                <enum>Expanding</enum>
+            </property>
+            <property name="sizeHint">
+                <size>
+                    <width>50</width>
+                    <height>20</height>
+                </size>
+            </property>
+            <property name="geometry">
+                <rect>
+                    <x>230</x>
+                    <y>260</y>
+                    <width>50</width>
+                    <height>20</height>
+                </rect>
+            </property>
+        </spacer>
+        <spacer>
+            <property name="name">
+                <cstring>Spacer9</cstring>
+            </property>
+            <property name="orientation">
+                <enum>Vertical</enum>
+            </property>
+            <property name="sizeType">
+                <enum>Expanding</enum>
+            </property>
+            <property name="sizeHint">
+                <size>
+                    <width>20</width>
+                    <height>80</height>
+                </size>
+            </property>
+            <property name="geometry">
+                <rect>
+                    <x>375</x>
+                    <y>21</y>
+                    <width>20</width>
+                    <height>80</height>
+                </rect>
+            </property>
+        </spacer>
+        <widget class="QLayoutWidget">
+            <property name="name">
+                <cstring>Layout69</cstring>
+            </property>
+            <property name="geometry">
+                <rect>
+                    <x>280</x>
+                    <y>100</y>
+                    <width>208</width>
+                    <height>242</height>
+                </rect>
+            </property>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>0</number>
+                </property>
+                <property name="spacing">
+                    <number>6</number>
+                </property>
+                <widget class="QLayoutWidget" row="4" column="0">
+                    <property name="name">
+                        <cstring>Layout66</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>6</number>
+                        </property>
+                        <widget class="QCheckBox">
+                            <property name="name">
+                                <cstring>tofcheck</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Tof</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <item>
+                                <property name="text">
+                                    <string>raw</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>cal</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>hit</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>none</string>
+                                </property>
+                            </item>
+                            <property name="name">
+                                <cstring>tofbox</cstring>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QCheckBox" row="6" column="0">
+                    <property name="name">
+                        <cstring>showertofinocheck</cstring>
+                    </property>
+                    <property name="text">
+                        <string>ShowerTofino</string>
+                    </property>
+                </widget>
+                <widget class="QLayoutWidget" row="3" column="0">
+                    <property name="name">
+                        <cstring>Layout65</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>6</number>
+                        </property>
+                        <widget class="QCheckBox">
+                            <property name="name">
+                                <cstring>mdccheck</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Mdc</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <item>
+                                <property name="text">
+                                    <string>raw</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>cal</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>hit</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>none</string>
+                                </property>
+                            </item>
+                            <property name="name">
+                                <cstring>mdcbox</cstring>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="2" column="0">
+                    <property name="name">
+                        <cstring>Layout64</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>6</number>
+                        </property>
+                        <widget class="QCheckBox">
+                            <property name="name">
+                                <cstring>richcheck</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Rich</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <item>
+                                <property name="text">
+                                    <string>raw</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>cal</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>hit</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>none</string>
+                                </property>
+                            </item>
+                            <property name="name">
+                                <cstring>richbox</cstring>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QCheckBox" row="0" column="0">
+                    <property name="name">
+                        <cstring>triggercheck</cstring>
+                    </property>
+                    <property name="text">
+                        <string>Trigger</string>
+                    </property>
+                </widget>
+                <widget class="QLayoutWidget" row="7" column="0">
+                    <property name="name">
+                        <cstring>Layout68</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>6</number>
+                        </property>
+                        <widget class="QCheckBox">
+                            <property name="name">
+                                <cstring>showercheck</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Shower</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <item>
+                                <property name="text">
+                                    <string>raw</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>cal</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>hit</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>none</string>
+                                </property>
+                            </item>
+                            <property name="name">
+                                <cstring>showerbox</cstring>
+                            </property>
+                            <property name="currentItem">
+                                <number>0</number>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="5" column="0">
+                    <property name="name">
+                        <cstring>Layout67</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>6</number>
+                        </property>
+                        <widget class="QCheckBox">
+                            <property name="name">
+                                <cstring>tofinocheck</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Tofino</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <item>
+                                <property name="text">
+                                    <string>raw</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>cal</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>none</string>
+                                </property>
+                            </item>
+                            <property name="name">
+                                <cstring>tofinobox</cstring>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+                <widget class="QLayoutWidget" row="1" column="0">
+                    <property name="name">
+                        <cstring>Layout63</cstring>
+                    </property>
+                    <hbox>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>6</number>
+                        </property>
+                        <widget class="QCheckBox">
+                            <property name="name">
+                                <cstring>startcheck</cstring>
+                            </property>
+                            <property name="text">
+                                <string>Start</string>
+                            </property>
+                        </widget>
+                        <widget class="QComboBox">
+                            <item>
+                                <property name="text">
+                                    <string>raw</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>cal</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>hit</string>
+                                </property>
+                            </item>
+                            <item>
+                                <property name="text">
+                                    <string>none</string>
+                                </property>
+                            </item>
+                            <property name="name">
+                                <cstring>startbox</cstring>
+                            </property>
+                        </widget>
+                    </hbox>
+                </widget>
+            </grid>
+        </widget>
+        <spacer>
+            <property name="name">
+                <cstring>Spacer10</cstring>
+            </property>
+            <property name="orientation">
+                <enum>Vertical</enum>
+            </property>
+            <property name="sizeType">
+                <enum>Expanding</enum>
+            </property>
+            <property name="sizeHint">
+                <size>
+                    <width>20</width>
+                    <height>370</height>
+                </size>
+            </property>
+            <property name="geometry">
+                <rect>
+                    <x>375</x>
+                    <y>345</y>
+                    <width>20</width>
+                    <height>370</height>
+                </rect>
+            </property>
+        </spacer>
+    </widget>
+</widget>
+<connections>
+    <connection>
+        <sender>PushButton2</sender>
+        <signal>clicked()</signal>
+        <receiver>TGo4HadesConfig</receiver>
+        <slot>getObj()</slot>
+    </connection>
+    <connection>
+        <sender>PushButton3</sender>
+        <signal>clicked()</signal>
+        <receiver>TGo4HadesConfig</receiver>
+        <slot>submit()</slot>
+    </connection>
+    <connection>
+        <sender>showertofinocheck</sender>
+        <signal>toggled(bool)</signal>
+        <receiver>TGo4HadesConfig</receiver>
+        <slot>checkConsistencyShowerTofino(bool)</slot>
+    </connection>
+    <connection>
+        <sender>tofinocheck</sender>
+        <signal>toggled(bool)</signal>
+        <receiver>TGo4HadesConfig</receiver>
+        <slot>checkConsistencyTofino()</slot>
+    </connection>
+    <connection>
+        <sender>tofinobox</sender>
+        <signal>activated(int)</signal>
+        <receiver>TGo4HadesConfig</receiver>
+        <slot>checkConsistencyTofino()</slot>
+    </connection>
+    <connection>
+        <sender>showercheck</sender>
+        <signal>toggled(bool)</signal>
+        <receiver>TGo4HadesConfig</receiver>
+        <slot>checkConsistencyShower()</slot>
+    </connection>
+    <connection>
+        <sender>showerbox</sender>
+        <signal>activated(int)</signal>
+        <receiver>TGo4HadesConfig</receiver>
+        <slot>checkConsistencyShower()</slot>
+    </connection>
+</connections>
+<includes>
+    <include location="local" impldecl="in declaration">Go4CommandsAnalysis/TGo4ComGetParameter.h</include>
+    <include location="local" impldecl="in declaration">TGo4HadesConfigParameter.h</include>
+    <include location="local" impldecl="in declaration">TGo4HadesConfigStatus.h</include>
+    <include location="local" impldecl="in declaration">TGo4HadesConfigSlots.h</include>
+    <include location="local" impldecl="in declaration">Go4GUIRegistry/TGo4GUIRegistry.h</include>
+    <include location="local" impldecl="in declaration">Go4CommandsAnalysis/TGo4ComSetParameter.h</include>
+    <include location="local" impldecl="in implementation">hgo4onlineconfig.h</include>
+    <include location="local" impldecl="in implementation">TGo4HadesConfig.ui.h</include>
+</includes>
+<variables>
+    <variable>bool detectorSetupChanged</variable>
+    <variable>TGo4GUIRegistry *fxTGo4GUIRegistry</variable>
+    <variable>TGo4HadesConfigSlots  *fxTGo4HadesConfigSlots</variable>
+    <variable>TGo4HadesConfigStatus  *fxTGo4HadesConfigStatus</variable>
+    <variable>TGo4HadesConfigParameter* configparam</variable>
+</variables>
+<slots>
+    <slot>init()</slot>
+    <slot>destroy()</slot>
+    <slot>closeEvent( QCloseEvent * ce )</slot>
+    <slot>newTreeSize()</slot>
+    <slot>getObj()</slot>
+    <slot>submit()</slot>
+    <slot>UpdateParam( TGo4Parameter * par )</slot>
+    <slot>checkConsistencyShowerTofino( bool )</slot>
+    <slot>checkConsistencyTofino()</slot>
+    <slot>checkConsistencyShower()</slot>
+    <slot>writeParams( HGo4OnlineParam * p )</slot>
+</slots>
+<pixmapinproject/>
+<layoutdefaults spacing="6" margin="11"/>
+</UI>

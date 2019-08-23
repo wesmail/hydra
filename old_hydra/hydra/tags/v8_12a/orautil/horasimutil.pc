@@ -1,0 +1,53 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Created : 01/08/2002 by Ilse Koenig
+
+//_HADES_CLASS_DESCRIPTION 
+//////////////////////////////////////////////////////////////////////////////
+//
+// HOraSimUtil
+//
+// Utility class for storage of simulation runs and eventgenerator files
+// in Oracle
+//
+//////////////////////////////////////////////////////////////////////////////
+
+using namespace std;
+#include "horasimutil.h"
+#include "hdbconn.h"
+#include <iostream>
+#include <iomanip>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// Include the SQL Communications Area
+#include <sqlca.h>
+
+ClassImp(HOraSimUtil)
+
+Bool_t HOraSimUtil::isOpen() {
+  return pConn->isOpen();
+}
+
+void HOraSimUtil::commit() {
+  // commits all changes
+  EXEC SQL COMMIT WORK;
+  cout<<"***  Transaction committed"<<endl;
+  return;
+}
+
+void HOraSimUtil::rollback() {
+  // discards all changes since last commit
+  EXEC SQL ROLLBACK WORK;
+  cout<<"***  Transaction rolled back"<<endl;
+  cout<<"****************************************************************\n";
+  return;
+}
+
+void HOraSimUtil::showSqlError(const char* f) {
+  // shows SQL error messages
+  cout<<"****************************************************************\n";
+  Error(f,"***  \n%s",sqlca.sqlerrm.sqlerrmc);
+}

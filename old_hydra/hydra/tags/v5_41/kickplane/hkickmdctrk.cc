@@ -1,0 +1,13 @@
+#include "hkickmdctrk.h"
+
+//*-- Author : M.Sanchez (1.12.2000)
+//*-- Modified : M.Sanchez (1.12.2000
+
+//////////////////////////////////////////////////////////////////////
+// HKickMdcTrk
+//
+//  Temporal class for Dec'00 testing of mid-resolution tracking.
+//
+//////////////////////////////////////////////////////////////////////
+
+ClassImp(HKickMdcTrk)

@@ -1,0 +1,98 @@
+<!DOCTYPE UI><UI version="3.0" stdsetdef="1">
+<class>TGo4UserWidget1</class>
+<comment>An example of adding user gui's to the Go4 </comment>
+<author>Mohammad Al-Turany</author>
+<widget class="QWidget">
+    <property name="name">
+        <cstring>TGo4UserWidget1</cstring>
+    </property>
+    <property name="geometry">
+        <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>396</width>
+            <height>401</height>
+        </rect>
+    </property>
+    <property name="sizePolicy">
+        <sizepolicy>
+            <hsizetype>7</hsizetype>
+            <vsizetype>7</vsizetype>
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+        </sizepolicy>
+    </property>
+    <property name="caption">
+        <string>TGo4UserWidget1</string>
+    </property>
+    <grid>
+        <property name="name">
+            <cstring>unnamed</cstring>
+        </property>
+        <property name="margin">
+            <number>11</number>
+        </property>
+        <property name="spacing">
+            <number>6</number>
+        </property>
+        <widget class="QLabel" row="0" column="0" rowspan="1" colspan="2">
+            <property name="name">
+                <cstring>TextLabel1</cstring>
+            </property>
+            <property name="sizePolicy">
+                <sizepolicy>
+                    <hsizetype>7</hsizetype>
+                    <vsizetype>5</vsizetype>
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                </sizepolicy>
+            </property>
+            <property name="text">
+                <string>This is A QWidget with the TQRootCanvas, drag Histograms from the Go4 Browser and drop them to the Canvas below to draw them.</string>
+            </property>
+            <property name="textFormat">
+                <enum>RichText</enum>
+            </property>
+        </widget>
+        <widget class="TQRootCanvas" row="1" column="0" rowspan="1" colspan="2">
+            <property name="name">
+                <cstring>RootCanvas4</cstring>
+            </property>
+        </widget>
+        <widget class="QLCDNumber" row="2" column="1">
+            <property name="name">
+                <cstring>LCDNumber2</cstring>
+            </property>
+        </widget>
+        <widget class="QLCDNumber" row="2" column="0">
+            <property name="name">
+                <cstring>LCDNumber1</cstring>
+            </property>
+        </widget>
+    </grid>
+</widget>
+<customwidgets>
+    <customwidget>
+        <class>TQRootCanvas</class>
+        <header location="local">tqrootcanvas.h</header>
+        <sizehint>
+            <width>200</width>
+            <height>300</height>
+        </sizehint>
+        <container>0</container>
+        <sizepolicy>
+            <hordata>7</hordata>
+            <verdata>7</verdata>
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+        </sizepolicy>
+        <pixmap>image0</pixmap>
+    </customwidget>
+</customwidgets>
+<images>
+    <image name="image0">
+        <data format="XPM.GZ" length="1241">789cbd94c16ec2300c86ef7d8aa8be55286cec8878844d1c91d00ebf3ad07680491b1c10e2dd49eac4b15336769ad5435c7ff1ffdbaa3aeddc6af9ecba69f37dc0e1a377fd3bbe5cf776dced4eebd7c5b9699f662e3eeeb19d34ad77bd7bf9dc6fe219e14c0f43c49438dd6e39f57762c450887b4ca43cf023937a106c2bcd1025085670a41564c082bff8090c59a86688226327b3cc6023a8d9f92b86c5aab8b19fff6330443e57cc50420e0d678653e8904e8aa98a054a4c36a05c940f841911f245577a1b2d2f35b1a7e7e2570af20a4a5aa6c279c1653f7a582d043d7b7a03e958efb05c122be568f68354b02933da8b9e2ab964263b2843697fe259d60398fd98d9bdaae75bf063e676fce9df72993757157a07ef</data>
+    </image>
+</images>
+<layoutdefaults spacing="6" margin="11"/>
+</UI>

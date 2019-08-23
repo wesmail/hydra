@@ -1,0 +1,109 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>Go4_Online_Monitor_HOWTO</title>
+             
+  <meta http-equiv="content-type"
+ content="text/html; charset=ISO-8859-1">
+</head>
+  <body>
+  <br>
+   
+<table cellpadding="2" cellspacing="2" border="1" width="100%">
+    <tbody>
+      <tr>
+        <td valign="top" bgcolor="#ffffcc"> ##################### <b><font
+ color="#ff0000">RUNNIG THE MONITOR</font></b> ####################<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; If you have managed to <a href="Go4_setup.html">setup
+your configuration</a> , you  can run<br>
+   &nbsp;&nbsp;&nbsp; the Monitor. Go4 will be the server part and the Analysis
+ will<br>
+   &nbsp;&nbsp;&nbsp; be the client. You can run both on the same machine 
+or on different<br>
+   &nbsp;&nbsp;&nbsp; ones.<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; Go4 has to be started first and then the Client.<br>
+   &nbsp;&nbsp;&nbsp; The Client needs the following arguments to start:<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <font color="#3333ff">Client</font> <font
+ color="#ff0000">MySessionName myHost myPort myParameterFile</font><br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <font color="#ff0000">MySessionName</font>= myMon (any
+ name)<br>
+        <font color="#ff0000"> &nbsp;&nbsp;&nbsp; myHost</font>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp; &nbsp; &nbsp; &nbsp;= lxg0424 (any machine)<br>
+   &nbsp;&nbsp;&nbsp; <font color="#ff0000">myPort</font>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp; &nbsp; &nbsp; &nbsp;&nbsp; = 5000&nbsp; (default port of Go4,<br>
+   &nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 
+&nbsp; &nbsp; &nbsp; &nbsp; be careful, if there is already a Go4 running,<br>
+   &nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 
+&nbsp; &nbsp; &nbsp; &nbsp; Go4 will increase this number (5001 ...).<br>
+   &nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp; &nbsp; 
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; 
+&nbsp; &nbsp; &nbsp; &nbsp; This port number has to match between client and
+Go4 server.)<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <font color="#ff0000">myParameterFile</font>= Hydradir/hadesgo4/Go4HadesClient/analysisParams.txt<br>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; (or any other place or
+file  name following the syntaxe above)<br>
+   <br>
+   <br>
+   &nbsp; &nbsp; &nbsp;If the ssh remote shell asks for a password you might
+have to <a href="Go4_dsa_key.html">generate a dsa key first</a>.<br>
+   &nbsp;&nbsp;&nbsp;<b> </b><br>
+   &nbsp;&nbsp;&nbsp; <b>1.</b> &nbsp;. ./hadesgo4login.sh<br>
+   &nbsp;&nbsp;&nbsp; <b>2.</b> &nbsp;go4&amp;<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <b>3.a.</b> -------------------------------------------------------------<br>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b><font
+ color="#009900">To run the Client on the same machine:</font></b><br>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ${HADDIR_HADESGO4}/Go4HadesClient/MainGo4HadesClient
+ MySessionName myHost 5000 'Hydradir/hadesgo4/Go4HadesClient/analysisParams.txt'<br>
+   <br>
+   &nbsp;&nbsp;&nbsp;<b> 3.b</b>&nbsp; -------------------------------------------------------------<br>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <b><font
+ color="#009900">To run the Client remote on some other machine:</font></b><br>
+   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Use the <font
+ color="#3333ff">Launch analysis client</font> dialog:<br>
+   <br>
+   &nbsp;&nbsp; &nbsp; <font color="#ff0000">Name</font>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp; : name of your session&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp; &nbsp; &nbsp; &nbsp; (myMon)<br>
+   &nbsp;&nbsp; &nbsp; <font color="#ff0000">Host</font>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp; &nbsp; : machine where the client will run (lxg0424)<br>
+   &nbsp;&nbsp;&nbsp;&nbsp; <font color="#ff0000">Dir</font>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp; &nbsp; &nbsp;: path of the client executable&nbsp;&nbsp;&nbsp;&nbsp;
+ &nbsp; &nbsp; &nbsp;(Hydradir/hadesgo4/Go4HadesClient/)<br>
+   &nbsp;&nbsp;&nbsp;&nbsp; <font color="#ff0000">Executable</font>: path 
+to the config parameter file &nbsp; (Hydradir/hadesgo4/Go4HadesClient/analysisParams.txt)<br>
+   &nbsp;&nbsp; &nbsp; <font color="#ff0000">switch to ssh option!</font><br>
+   <br>
+   &nbsp;&nbsp; &nbsp; -------------------------------------------------------------<br>
+   <br>
+   <br>
+   &nbsp;&nbsp;&nbsp;&nbsp; <b>4.</b>&nbsp; Start <font color="#3333ff">User
+ Panel</font> on the Go4 Main GUI (Go4 Hades Monitor button will pop up)<br>
+   &nbsp;&nbsp;&nbsp;&nbsp; <b>5.</b>&nbsp; Press the button to Open <font
+ color="#3333ff">Hades Monitor</font> main panel<br>
+   &nbsp;&nbsp;&nbsp;&nbsp; <b>6.</b>&nbsp; Click on start if the Client
+is  ready to run<br>
+   &nbsp;&nbsp;&nbsp;&nbsp; <b>7.</b>&nbsp; Open any Monitor you want to
+look  at<br>
+   &nbsp;&nbsp;&nbsp;&nbsp; <b>8.</b>&nbsp; Open the Debugger to find out,
+ why the hell you got "break segmentation"<br>
+   &nbsp;&nbsp;&nbsp;&nbsp; <b>9.</b> &nbsp;Please, don't call me and debug
+ your self.<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; #############################################################<br>
+        </td>
+      </tr>
+       
+  </tbody>  
+</table>
+  
+</body>
+</html>

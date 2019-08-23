@@ -1,0 +1,1785 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Modified : 19/11/2002 by I.Koenig
+//*-- Modified : 29/10/2002 by I.Koenig
+//*-- Modified : 26/07/2002 by I.Koenig
+//*-- Modified : 15/07/2002 by I.Koenig
+//*-- Modified : 31/05/2002 by I.Koenig
+//*-- Modified : 21/02/2000 by I.Koenig
+
+//////////////////////////////////////////////////////////////////////////////
+// HMdcParOraIo
+//
+// Interface class to database Oracle for input/output of parameters needed
+// by the Mdc
+// (uses the Oracle C/C++ precompiler)
+//
+//////////////////////////////////////////////////////////////////////////////
+using namespace std;
+#include "hmdcparoraio.h"
+#include "hades.h"
+#include "hruntimedb.h"
+#include "hrun.h"
+#include "hspectrometer.h"
+#include "hdetector.h"
+#include "hmdcdetector.h"
+#include "hmdcrawstruct.h"
+#include "hmdcgeomstruct.h"
+#include "hmdccalparraw.h"
+#include "hmdclookupgeom.h"
+#include "hmdclayergeompar.h"
+#include "hmdcmboreadout.h"
+#include "hmdcgeompar.h"
+#include "hgeomcompositevolume.h"
+#include "hmdccelleff.h"
+#include "hmdctimecut.h"
+#include "hmdccal2parsim.h"
+#include "hmdctdcthreshold.h"
+#include "hmdcclosepaircutspar.h"
+#include <iostream>
+#include <iomanip>
+#include <unistd.h>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// SQL Communications Area
+#include <sqlca.h>
+
+ClassImp(HMdcParOraIo)
+
+#define MDC_MAXMODS 24
+#define MDC_MAXMOTHS 16
+#define MDC_MAXLAYS 6
+#define MDC_MAXWIRES 1320
+#define MDC_MAXCHAN 1536
+#define MDC_MAXARR 2000
+
+HMdcParOraIo::HMdcParOraIo(HOraConn* pC) : HDetParOraIo(pC) {
+  // constructor
+  // sets the name of the I/O class "HMdcParIo"
+  // gets the pointer to the connection class
+  fName="HMdcParIo";
+  numModules=0;
+  mdcIds=0;
+  modIds=0;
+  initModules=0;
+}
+
+
+HMdcParOraIo::~HMdcParOraIo() {
+  // destructor
+  if (mdcIds) delete mdcIds;
+  if (modIds) delete modIds;
+  if (initModules) delete initModules;
+}
+
+
+Bool_t HMdcParOraIo::init(HParSet* pPar,Int_t* set) {
+  // calls special read-function for each parameter container
+  const Text_t* name=pPar->IsA()->GetName();
+  if (strcmp(name,"HMdcSetup")==0) return readCond((HParCond*)pPar,set);
+  if (strcmp(name,"HMdcDigitPar")==0) return readCond((HParCond*)pPar,set);
+  if (strcmp(name,"HMdcTrackFitPar")==0) return readCond((HParCond*)pPar,set);
+  if (strcmp(name,"HMdcTdcThreshold")==0) return read((HMdcTdcThreshold*)pPar,set);
+  if (strcmp(name,"HMdcClosePairCutsPar")==0) return read((HMdcClosePairCutsPar*)pPar,set);
+  if (startIo(pPar)<=0) return kFALSE;
+  if (strcmp(name,"HMdcRawStruct")==0) return read((HMdcRawStruct*)pPar,set);
+  if (strcmp(name,"HMdcGeomStruct")==0) return read((HMdcGeomStruct*)pPar,set);
+  if (strcmp(name,"HMdcLookupGeom")==0) return read((HMdcLookupGeom*)pPar,set);	
+  if (strcmp(name,"HMdcMboReadout")==0) return read((HMdcMboReadout*)pPar,set);
+  if (strcmp(name,"HMdcLayerGeomPar")==0) return read((HMdcLayerGeomPar*)pPar,set);
+  if (strcmp(name,"HMdcGeomPar")==0) return read((HMdcGeomPar*)pPar,set);
+  if (strcmp(name,"HMdcCalParRaw")==0) return read((HMdcCalParRaw*)pPar,set);
+  if (strcmp(name,"HMdcCellEff")==0) return read((HMdcCellEff*)pPar,set);
+  if (strcmp(name,"HMdcTimeCut")==0) return read((HMdcTimeCut*)pPar,set);
+  if (strcmp(name,"HMdcCal2ParSim")==0) return read((HMdcCal2ParSim*)pPar,set);
+  cout<<"initialization of "<<name<<" not possible from Oracle!"<<endl;
+  return kFALSE;
+}
+
+
+Int_t HMdcParOraIo::write(HParSet* pPar) {
+  // calls the appropriate write function for the container
+  const Text_t* name=pPar->IsA()->GetName();
+  if ((runStart=getRunStart(pPar))<=0) return -1;
+  if (strcmp(name,"HMdcSetup")==0) return writeCond((HParCond*)pPar);
+  if (strcmp(name,"HMdcDigitPar")==0) return writeCond((HParCond*)pPar);
+  if (strcmp(name,"HMdcTrackFitPar")==0) return writeCond((HParCond*)pPar);
+  if (strcmp(name,"HMdcTdcThreshold")==0) return writePar((HMdcTdcThreshold*)pPar);
+  if (strcmp(name,"HMdcClosePairCutsPar")==0) return writePar((HMdcClosePairCutsPar*)pPar);
+  if (startIo(pPar)<=0) return -1;
+  if (strcmp(name,"HMdcCalParRaw")==0) return writePar((HMdcCalParRaw*)pPar);
+  if (strcmp(name,"HMdcCellEff")==0) return writePar((HMdcCellEff*)pPar);
+  if (strcmp(name,"HMdcTimeCut")==0) return writePar((HMdcTimeCut*)pPar);
+  if (strcmp(name,"HMdcGeomPar")==0) return writeAlignment((HMdcGeomPar*)pPar);
+  if (strcmp(name,"HMdcCal2ParSim")==0) return writePar((HMdcCal2ParSim*)pPar);
+  cout<<"No write-interface to Oracle for parameter container "
+      <<pPar->GetName()<<endl;
+  return 0;
+}
+
+
+Int_t HMdcParOraIo::startIo(HParSet* pPar) {
+  // gets the run start of the actual run
+  // reads the detector setup from Oracle for the first run and returns the number
+  //   of modules found
+  // returns -1, if the run is not found, or 0, if no modules are found for this run
+  runStart=getRunStart(pPar);
+  if (runStart>0 && mdcIds==0) readIds();
+  if (runStart==-1 || numModules<=0) {
+    pPar->setInputVersion(-1,inputNumber);
+    return -1;
+  }
+  return runStart;
+}
+
+
+Int_t HMdcParOraIo::readIds() {
+  // reads the id numbers of all modules defined for the actual run
+  // and stores them in array mdcIds
+  // returns the number of modules found
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int mdc[MDC_MAXMODS]; 
+      int sec[MDC_MAXMODS];
+      int pla[MDC_MAXMODS];
+    } mods;
+  EXEC SQL END DECLARE SECTION;
+
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readIds()");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+
+  EXEC SQL SELECT mdc_hwobj_id, sector, plane
+    INTO :mods
+    FROM mdc_ana.mdc_loc_at_run_hist;
+
+  numModules=sqlca.sqlerrd[2];
+  Int_t maxId=0;
+  HMdcDetector* det=(HMdcDetector*)(gHades->getSetup()->getDetector("Mdc"));
+  Int_t s, p, pos;
+  if (numModules>0) {
+    mdcIds=new TArrayI(MDC_MAXMODS);
+    for(Int_t i=0;i<MDC_MAXMODS;i++) mdcIds->AddAt(0,i);
+    initModules=new TArrayI(MDC_MAXMODS);
+    for(Int_t i=0;i<numModules;i++) {
+      s=mods.sec[i]-1;
+      p=mods.pla[i]-1;
+      pos=s*4+p;
+      if (det->getModule(s,p)) {
+        mdcIds->AddAt(mods.mdc[i],pos);
+        maxId=(mods.mdc[i]>maxId)?mods.mdc[i]:maxId;
+      }
+    }
+    if (maxId>0) {
+      modIds=new TArrayI((++maxId));
+      for(Int_t i=0;i<maxId;i++) modIds->AddAt(0,i);
+      for(Int_t i=0;i<mdcIds->GetSize();i++) {
+        Int_t j=mdcIds->At(i);
+        if (j) modIds->AddAt(j,j);
+      }
+    }
+    // printIds();
+  }
+  return numModules;
+}
+ 
+
+void HMdcParOraIo::printIds() {
+  // prints the id numbers of all modules
+  if (mdcIds) {
+    for(Int_t i=0;i<6;i++) {
+      cout<<"sector: "<<i+1<<"   mdc ids:";
+      for(Int_t j=0;j<4;j++) { cout<<" "<<mdcIds->At(i*4+j); }
+      cout<<'\n';
+    }
+    cout<<'\n';
+  }
+}
+
+
+Bool_t HMdcParOraIo::read(HMdcRawStruct* pPar,Int_t* set) {
+  // reads the names (characterizes the position) of the motherboards
+  // and the maximum number of TDCs on each of it and fills the
+  // MdcRawStruct container
+  Int_t nMoths=-1, pos;
+  char mboName[4];
+  
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    struct {
+      int mbo[MDC_MAXMOTHS]; 
+      int nChan[MDC_MAXMOTHS];
+    } moths;
+    struct {
+      short mbo_Ind[MDC_MAXMOTHS]; 
+      short nChan_Ind[MDC_MAXMOTHS];
+    } moths_Ind;
+  EXEC SQL END DECLARE SECTION;
+
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HMdcRawStruct*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+
+  EXEC SQL DECLARE c1 CURSOR FOR
+    SELECT  mbo_local_pos_id, n_tdc_chan
+    FROM mdc_ana.mdcrawstruct_at_histdate
+    WHERE mdc_hwobj_id=:id
+    ORDER BY mbo_local_pos_id;
+
+  Bool_t allFound=kTRUE, isOpenCursor=kFALSE;
+  initModules->Reset();
+  HMdcRawStruct& mdc=*pPar;
+  for(Int_t i=0;i<6;i++) {
+    HMdcRawSecStru& sec=mdc[i];
+    for(Int_t j=0;j<4;j++) {
+      HMdcRawModStru& mod=sec[j];
+      pos=i*4+j;
+      if (set[pos]) {
+        id=mdcIds->At(pos);
+        if (id>0) {
+          EXEC SQL OPEN c1;
+          isOpenCursor=kTRUE;
+          EXEC SQL FETCH c1 INTO :moths INDICATOR :moths_Ind;
+          nMoths=sqlca.sqlerrd[2];
+          if (nMoths>0) {
+            set[pos]=0;
+            initModules->AddAt(pos+1,pos);
+            for(Int_t i=0;i<nMoths;i++) {
+              sprintf(mboName,"%3i",moths.mbo[i]);
+              mod[i].SetName(mboName);
+              mod[i].setNTdcs(moths.nChan[i]);
+            }
+          } else allFound=kFALSE;
+        } else allFound=kFALSE;
+      }
+    }
+  }
+  if (isOpenCursor) {
+    EXEC SQL CLOSE c1;
+    setChanged(pPar);
+    printInfo(pPar->GetName());
+  } else pPar->setInputVersion(-1,inputNumber);
+  return allFound;
+}   
+
+
+Bool_t HMdcParOraIo::read(HMdcGeomStruct* pPar,Int_t* set) {
+  // reads the number of cells in each layer and fills the
+  // MdcGeomStruct container
+  Int_t nLayers=-1, pos;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    struct {
+      int lay[MDC_MAXLAYS];
+      int nWir[MDC_MAXLAYS];
+    } layers;
+  EXEC SQL END DECLARE SECTION;
+
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HMdcGeomStruct*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+
+  EXEC SQL DECLARE c2 CURSOR FOR
+    SELECT layer_nr, n_wires 
+    FROM mdc_ana.mdclayerparam
+    WHERE mdc_hwobj_id=:id;
+
+  Bool_t allFound=kTRUE, isOpenCursor=kFALSE;
+  initModules->Reset();
+  HMdcGeomStruct& mdc=*pPar;
+  for(Int_t i=0;i<6;i++) {
+    HMdcGeomSecStru& sec=mdc[i];
+    for(Int_t j=0;j<4;j++) {
+      HMdcGeomModStru& mod=sec[j];
+      pos=i*4+j;
+      if (set[pos]) {
+        id=mdcIds->At(pos);
+        if (id>0) {
+          EXEC SQL OPEN c2;
+          isOpenCursor=kTRUE;
+          EXEC SQL FETCH c2 INTO :layers;
+          nLayers=sqlca.sqlerrd[2];
+          if (nLayers!=MDC_MAXLAYS) allFound=kFALSE;
+          else {
+            set[pos]=0;
+            initModules->AddAt(pos+1,pos);
+            for(Int_t i=0;i<nLayers;i++)
+              mod.fill((layers.lay[i]-1),layers.nWir[i]);
+          }
+        }
+        else allFound=kFALSE;
+      }
+    }
+  }
+  if (isOpenCursor) {
+    EXEC SQL CLOSE c2;
+    setChanged(pPar);
+    printInfo(pPar->GetName());
+  } else pPar->setInputVersion(-1,inputNumber);
+  return allFound;
+} 
+
+
+Int_t HMdcParOraIo::getLookupVersion(HMdcLookupGeom* pPar) {
+  // reads the version for the MdcLookupGeom container valid at the start time
+  //   of the actual run
+  // if the version differs from the container version, the container must be
+  //   reinitialized
+  HParOraSet* oraSet=getOraSet(pPar);
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (contVers!=-1 && runStart>=oraSet->versDate[0] && runStart<=oraSet->versDate[1])
+      return contVers;
+  oraSet->clearVersDate();
+
+  EXEC SQL BEGIN DECLARE SECTION;
+    double since;
+    double until;
+  EXEC SQL END DECLARE SECTION;
+
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getLookupVersion(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+
+  EXEC SQL SELECT hdate.to_ansitime(MAX(valid_since)),
+                  hdate.to_ansitime(MIN(valid_until))
+           INTO :since, :until
+           FROM mdc_ana.fpc_loc_at_histdate;
+  oraSet->versDate[0]=since;  
+  oraSet->versDate[1]=until;  
+  return getActRunId();
+notfound:
+  return -1;
+}; 
+
+
+Bool_t HMdcParOraIo::read(HMdcLookupGeom* pPar, Int_t* set) {
+  // reads and fills the container "MdcLookupGeom" for mapping
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  Int_t version=getLookupVersion(pPar);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (contVers==version) return kTRUE;
+  if (inputNumber==1) pPar->clear();
+
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    struct {
+      int mbo[MDC_MAXWIRES];
+      int tdc[MDC_MAXWIRES];
+      int chan[MDC_MAXWIRES];
+      int lay[MDC_MAXWIRES];
+      int wire[MDC_MAXWIRES];
+    } lookup;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HMdcLookupGeom*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE c3 CURSOR FOR
+    SELECT  mbo_local_pos_id, tdc_nr, tdc_chan, layer_nr, wire_nr
+    FROM mdc_ana.mdclookupgeom_at_histdate
+    WHERE mdc_hwobj_id=:id
+    ORDER BY mbo_local_pos_id;
+     
+  HMdcRawStruct* pRawStruct=
+       (HMdcRawStruct*)gHades->getRuntimeDb()->getContainer("MdcRawStruct");
+  Bool_t allFound=kTRUE, isOpenCursor=kFALSE;
+  initModules->Reset();
+  HMdcLookupGeom& mdc=*pPar;
+  Int_t nWires=-1, pos, mboNr=-1, mo, ml=-1, ch;
+  char buf[4];
+   for(Int_t i=0;i<6;i++) {
+    HMdcLookupGSec& sec=mdc[i];
+    for(Int_t j=0;j<4;j++) {
+      HMdcLookupGMod& mod=sec[j];
+      pos=i*4+j;
+      if (set[pos]) {
+        HMdcRawModStru& pModStruct=(*pRawStruct)[i][j];
+        id=mdcIds->At(pos);
+        if (id>0) {
+          EXEC SQL OPEN c3;
+          isOpenCursor=kTRUE;
+          EXEC SQL FETCH c3 INTO :lookup;
+          ml=-1;
+          nWires=sqlca.sqlerrd[2];
+          if (nWires>0) {
+            set[pos]=0;
+            initModules->AddAt(pos+1,pos);
+            for(Int_t k=0;k<nWires;k++) {
+              mo=lookup.mbo[k];
+              if (mo>ml) {
+                sprintf(buf,"%3i",mo);
+                mboNr=pModStruct.getMboIndex(buf);
+                ml=mo;
+              }
+              ch=(lookup.tdc[k]-1)*8 + lookup.chan[k] - 1;
+              mod[mboNr][ch].fill((lookup.lay[k]-1),(lookup.wire[k]-1));
+            }
+          } else allFound=kFALSE;
+        } else allFound=kFALSE;
+      }
+    }
+  }
+  if (isOpenCursor) {
+    EXEC SQL CLOSE c3;
+    setChanged(pPar);
+    printInfo(pPar->GetName());
+  } else pPar->setInputVersion(-1,inputNumber);
+  return allFound;     
+}; 
+ 
+
+Int_t HMdcParOraIo::getReadoutVersion(HMdcMboReadout* pPar) {
+  // reads the version for the MboReadout container valid at the start time
+  //   of the actual run
+  // if the version differs from the container version, the container must
+  //   be reinitialized
+  HParOraSet* oraSet=getOraSet(pPar);
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (contVers!=-1 && runStart>=oraSet->versDate[0] && runStart<=oraSet->versDate[1])
+      return contVers;
+  oraSet->clearVersDate();
+
+  EXEC SQL BEGIN DECLARE SECTION;
+    double since1;
+    double until1;
+    double since2;
+    double until2;
+    double since3;
+    double until3;
+  EXEC SQL END DECLARE SECTION;
+
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getReadoutVersion(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+
+  EXEC SQL SELECT ma1, mi1, ma2, mi2, ma3, mi3
+       INTO :since1 , :until1, :since2, :until2, :since3, :until3   
+       FROM
+         (SELECT hdate.to_ansitime(MAX(valid_since)) AS ma1,
+                 hdate.to_ansitime(MIN(valid_until)) AS mi1
+           FROM mdc_ana.mbo_lvl1_loc           
+           WHERE hades_oper.run_query.get_date() BETWEEN valid_since AND valid_until
+                 AND hades_oper.run_query.get_history_date BETWEEN date_create And invalid_since),
+         (SELECT hdate.to_ansitime(MAX(valid_since)) AS ma2,
+                 hdate.to_ansitime(MIN(valid_until)) AS mi2
+            FROM mdc_ana.lvl1_loc
+            WHERE hades_oper.run_query.get_date() BETWEEN valid_since AND valid_until
+                 AND hades_oper.run_query.get_history_date BETWEEN date_create And invalid_since),
+         (SELECT hdate.to_ansitime(MAX(valid_since)) AS ma3,
+                 hdate.to_ansitime(MIN(valid_until)) AS mi3
+            FROM mdc_ana.gtb_loc
+            WHERE hades_oper.run_query.get_date() BETWEEN valid_since AND valid_until
+                 AND hades_oper.run_query.get_history_date BETWEEN date_create And invalid_since);
+
+  if (since1>since2) oraSet->versDate[0]=since1;  
+  else oraSet->versDate[0]=since2;
+  if (since3>oraSet->versDate[0]) oraSet->versDate[0]=since3;
+  if (until1<until2) oraSet->versDate[1]=until1;
+  else oraSet->versDate[1]=until2;
+  if (until3<oraSet->versDate[1]) oraSet->versDate[1]=until3;
+  return getActRunId();
+notfound:
+  return -1;
+} 
+
+
+Bool_t HMdcParOraIo::read(HMdcMboReadout* pPar, Int_t* set) {
+  // reads the lookup tables to connect the hardware adresses (sector, module,
+  // motherboard, tdc channel) with the event readout adresses uses in the
+  //  unpacker
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  Int_t version=getReadoutVersion(pPar);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (contVers==version) return kTRUE;
+  if (inputNumber==1) pPar->clear();
+
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    struct {
+      int mbo [MDC_MAXMOTHS];
+      int bus [MDC_MAXMOTHS];
+      int busPos [MDC_MAXMOTHS];
+      int roc [MDC_MAXMOTHS];
+      int samPos [MDC_MAXMOTHS];
+      int sam [MDC_MAXMOTHS];
+    } readout;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HMdcLookupGeom*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE c4 CURSOR FOR
+    SELECT mbo_local_pos_id,mbo_pos_in_lvl1,roc_input_con, roc_pos_in_crate,
+           sam_input_con,sam_pos
+    FROM mdc_ana.mdcreadout_at_run_hist
+    WHERE mdc_hwobj_id = :id
+    ORDER BY mbo_local_pos_id;
+
+  HMdcRawStruct* pRawStruct=
+       (HMdcRawStruct*)gHades->getRuntimeDb()->getContainer("MdcRawStruct");
+  Bool_t allFound=kTRUE, isOpenCursor=kFALSE;
+  initModules->Reset();
+  HMdcMboReadout& mdc=*pPar;
+  Int_t pos, nMbo, mboNr=-1, mo;
+  char buf[4];
+  for(Int_t i=0;i<6;i++) {
+    HMdcMboReadoutSec& sec=mdc[i];
+    for(Int_t j=0;j<4;j++) {
+      HMdcMboReadoutMod& mod=sec[j];
+      pos=i*4+j;
+      if (set[pos]) {
+        HMdcRawModStru& pModStruct=(*pRawStruct)[i][j];
+        id=mdcIds->At(pos);
+        if (id>0) {
+          EXEC SQL OPEN c4;
+          isOpenCursor=kTRUE;
+          EXEC SQL FETCH c4 INTO :readout;
+          nMbo=sqlca.sqlerrd[2];
+          if (nMbo>0) {
+            set[pos]=0;
+            initModules->AddAt(pos+1,pos);
+            for(Int_t k=0;k<nMbo;k++) {
+              mo=readout.mbo[k];
+              sprintf(buf,"%3i",mo);
+              mboNr=pModStruct.getMboIndex(buf);
+              HMdcMboReadoutMoth& moth=mod[mboNr];
+              moth.setBus(readout.bus[k]);
+              moth.setBusPos(readout.busPos[k]);
+              moth.setRoc(readout.roc[k]);
+              moth.setSamPos(readout.samPos[k]);
+              moth.setSam(readout.sam[k]-1);
+            }
+          } else allFound=kFALSE;
+        } else allFound=kFALSE;
+      }
+    }
+  }
+  if (isOpenCursor) {
+    EXEC SQL CLOSE c4;
+    setChanged(pPar);
+    printInfo(pPar->GetName());
+  } else pPar->setInputVersion(-1,inputNumber);
+  return allFound;    
+} 
+
+
+Bool_t HMdcParOraIo::read(HMdcLayerGeomPar* pPar,Int_t* set) {
+  // reads geometry parameters of the layers
+  Int_t nLayers=-1, pos;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    struct {
+      int lay[MDC_MAXLAYS];
+      float pitch[MDC_MAXLAYS];
+      float dist[MDC_MAXLAYS];
+      float angle[MDC_MAXLAYS];
+      float cwire[MDC_MAXLAYS];
+    } layers;
+  EXEC SQL END DECLARE SECTION;
+
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HMdcLayerGeomPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+
+  EXEC SQL DECLARE c5 CURSOR FOR
+    SELECT layer_nr, cell_pitch, cell_thickness, inclination_angle, central_wire_nr
+    FROM mdc_ana.mdclayerparam
+    WHERE mdc_hwobj_id=:id;
+
+  Bool_t allFound=kTRUE, isOpenCursor=kFALSE;
+  initModules->Reset();
+  HMdcLayerGeomPar& mdc=*pPar;
+  for(Int_t i=0;i<6;i++) {
+    HMdcLayerGeomParSec& sec=mdc[i];
+    for(Int_t j=0;j<4;j++) {
+      HMdcLayerGeomParMod& mod=sec[j];
+      pos=i*4+j;
+      if (set[pos]) {
+        id=mdcIds->At(pos);
+        if (id>0) {
+          EXEC SQL OPEN c5;
+          isOpenCursor=kTRUE;
+          EXEC SQL FETCH c5 INTO :layers;
+          nLayers=sqlca.sqlerrd[2];
+          if (nLayers==MDC_MAXLAYS) {
+            set[pos]=0;
+            initModules->AddAt(pos+1,pos);
+            for(Int_t i=0;i<nLayers;i++)
+            mod[(layers.lay[i]-1)].fill(layers.pitch[i],layers.dist[i],
+                                        layers.angle[i],layers.cwire[i]);
+          } else allFound=kFALSE;
+        } else allFound=kFALSE;
+      }
+    }
+  }
+  if (isOpenCursor) {
+    EXEC SQL CLOSE c5;
+    setChanged(pPar);
+    printInfo(pPar->GetName());
+  } else pPar->setInputVersion(-1,inputNumber);
+  return allFound;
+} 
+ 
+
+Bool_t HMdcParOraIo::read(HMdcGeomPar* pPar, Int_t* set) {
+  // reads the geometry of the MDC and fills the MdcGeomPar container
+  Bool_t allFound=kTRUE;
+  if (pPar->isFirstInitialization()) {
+    if (!readModGeomNames(pPar,set) || !readLayerGeomNames(pPar,set)) allFound=kFALSE;
+  }
+  if (allFound) return readGeometry(pPar,set);
+  pPar->clear();
+  return kFALSE;    
+} 
+ 
+
+Bool_t HMdcParOraIo::readModGeomNames(HMdcGeomPar* pPar,Int_t* set) {
+  // reads the mdc_pos_id of all modules
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int mdc[MDC_MAXMODS];
+      int sec[MDC_MAXMODS];
+      int pla[MDC_MAXMODS];
+      varchar oname[MDC_MAXMODS][9];
+    } mods;
+    struct {
+      short mdc_Ind[MDC_MAXMODS];
+      short sec_Ind[MDC_MAXMODS];
+      short pla_Ind[MDC_MAXMODS];
+      short oname_Ind[MDC_MAXMODS];
+    } mods_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readModGeomNames()");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+
+  EXEC SQL SELECT mdc_hwobj_id, sector, plane, geom_obj
+    INTO :mods INDICATOR :mods_Ind
+    FROM mdc_ana.mdc_loc_at_run_hist;
+
+  Int_t nMods=sqlca.sqlerrd[2];
+  Int_t pos, s, m;
+  char ref[10];
+  Bool_t allFound=kTRUE;
+  initModules->Reset();
+  for(Int_t i=0;i<nMods;i++) {
+    s=mods.sec[i]-1;
+    m=mods.pla[i]-1;
+    HModGeomPar* pMod=pPar->getModule(s,m);
+    pos=s*4 + m;
+    if (pMod && set[pos]) {
+      if (mods_Ind.oname_Ind[i]!=-1) {
+        mods.oname[i].arr[mods.oname[i].len]='\0';
+        pMod->SetName((char*)(mods.oname[i].arr));
+        initModules->AddAt(pos+1,pos);
+        strcpy(ref,(char*)(mods.oname[i].arr));
+        ref[4]='1'; // reference module in sector 1
+                    // not yet introduced in database
+        pMod->setRefName(ref);
+        Int_t mr=pPar->getModNumInMod(ref);
+        HGeomCompositeVolume* refMod=pPar->getRefVolume(mr);
+        if (refMod==0) {
+          refMod=new HGeomCompositeVolume(pPar->getNumComponents());
+          refMod->SetName(ref);
+          pPar->addRefVolume(refMod,mr);
+        }
+        pMod->setVolume(refMod);
+      }
+    }
+  } 
+  for(Int_t i=0;i<MDC_MAXMODS;i++) {
+    if (set[i]==1 && initModules->At(i)==0) allFound=kFALSE;
+  }
+  return allFound; 
+} 
+ 
+
+Bool_t HMdcParOraIo::readLayerGeomNames(HMdcGeomPar* pPar,Int_t* set) {
+  // reads the names of all layers in the geometry tables
+  Int_t nLayers=-1, pos;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    struct {
+      int lay[MDC_MAXLAYS];
+      varchar oname[MDC_MAXLAYS][9];
+    } layers;
+    struct {
+      short lay_Ind[MDC_MAXMODS];
+      short oname_Ind[MDC_MAXMODS];
+    } layers_Ind;
+  EXEC SQL END DECLARE SECTION;
+
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readLayerGeomNames(...)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+
+  EXEC SQL DECLARE c7 CURSOR FOR
+    SELECT layer_nr, layer_name
+    FROM mdc_ana.mdclayerparam
+    WHERE mdc_hwobj_id=:id;
+
+  Bool_t allFound=kTRUE;
+  for(Int_t i=0;i<6;i++) {
+    for(Int_t j=0;j<4;j++) {
+      HModGeomPar* pMod=pPar->getModule(i,j);
+      pos=i*4+j;
+      if (set[pos] && pMod) {
+        HGeomCompositeVolume* pRefMod=pMod->getRefVolume();
+        id=mdcIds->At(pos);
+        if (id>0) {
+          EXEC SQL OPEN c7;
+          EXEC SQL FETCH c7 INTO :layers INDICATOR :layers_Ind;
+          nLayers=sqlca.sqlerrd[2];
+          if (nLayers!=MDC_MAXLAYS) allFound=kFALSE;
+          for(Int_t k=0;k<nLayers;k++) {
+            if (layers_Ind.oname_Ind[k]!=-1) {
+              layers.oname[k].arr[layers.oname[k].len]='\0';
+              HGeomVolume* volu=pRefMod->getComponent((layers.lay[k]-1));
+              volu->SetName((char*)(layers.oname[k].arr));
+            }
+          }
+          EXEC SQL CLOSE c7; 
+        }
+      }
+    }
+  }
+  return allFound;    
+}
+
+ 
+void HMdcParOraIo::printInfo(const char* contName) {
+  // prints the modules initialized from Oracle
+  // will later go to the log file
+  Bool_t first=kTRUE;
+  for(Int_t i=0;i<MDC_MAXMODS;i++) {
+    if (initModules->At(i)) {
+      if (first) {
+        cout<<contName<<": modules(s) initialized from Oracle: ";
+        first=kFALSE;
+      }
+      cout<<(initModules->At(i)-1)<<" ";
+    }
+  }
+  cout<<'\n';
+}
+
+
+Int_t HMdcParOraIo::getVersion(HParSet* pPar,TArrayI* versions) {
+  // used for parameter containers with version management for modules
+  // reads the newest versions valid for the current event file
+  // returns -1, if no data found
+  HParOraSet* oraSet=getOraSet(pPar);
+  Int_t runStart=getRunStart(pPar);
+  if (oraSet->contextId==-1 || runStart==-1) return -1;
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (contVers!=-1 && runStart>=oraSet->versDate[0] && runStart<=oraSet->versDate[1])
+      return contVers;
+  const char* containerClass=pPar->IsA()->GetName();
+  oraSet->clearVersDate();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int context;
+    struct {
+      int mdc[MDC_MAXMODS];
+      int vers[MDC_MAXMODS];
+      double since[MDC_MAXMODS];
+      double until[MDC_MAXMODS];
+    } mods;
+  EXEC SQL END DECLARE SECTION;
+  context=oraSet->contextId;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getVersion(HParSet*,TArrayI*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  if (strcmp(containerClass,"HMdcCalParRaw")==0) {
+    EXEC SQL SELECT mdc, version,
+                    hdate.to_ansitime(valid_since),
+                    hdate.to_ansitime(valid_until)
+             INTO :mods
+             FROM mdc_ana.mdc_cal1par_vers_at_date
+             WHERE context_id = :context;
+  } else {
+    if (strcmp(containerClass,"HMdcCal2ParSim")==0) {
+      EXEC SQL SELECT mdc, version,
+                      hdate.to_ansitime(valid_since),
+                      hdate.to_ansitime(valid_until)
+               INTO :mods
+               FROM mdc_ana.mdc_cal2parsim_vers_at_date
+               WHERE context_id = :context;
+    }
+  }
+  for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+    Int_t m=mods.mdc[i];
+    if (modIds->At(m)>0) {
+      versions->AddAt(mods.vers[i],m);
+      if (mods.since[i]>oraSet->versDate[0]) oraSet->versDate[0]=mods.since[i];
+      if (mods.until[i]<oraSet->versDate[1]) oraSet->versDate[1]=mods.until[i];
+    }
+  }
+  if (oraSet->versDate[0]>0) return getActRunId();
+  return -1;  
+}; 
+
+
+Int_t HMdcParOraIo::getVersion(HParSet* pPar, Int_t& version) {
+  // used for parameter containers with one version for all modules or planes
+  // reads the newest version valid for the current event file
+  // returns -1, if no data found
+  HParOraSet* oraSet=getOraSet(pPar);
+  Int_t runStart=getRunStart(pPar);
+  if (oraSet->contextId==-1 || runStart==-1) return -1;
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (contVers!=-1 && runStart>=oraSet->versDate[0] && runStart<=oraSet->versDate[1])
+      return contVers;
+  const char* containerClass=pPar->IsA()->GetName();
+  oraSet->clearVersDate();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int context;
+    int vers;
+    double since;
+    double until;
+  EXEC SQL END DECLARE SECTION;
+  context=oraSet->contextId;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getVersion(HParSet*,Int_t&)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  if (strcmp(containerClass,"HMdcCellEff")==0) {
+    EXEC SQL SELECT version,
+                    hdate.to_ansitime(valid_since),
+                    hdate.to_ansitime(valid_until)
+             INTO :vers, :since, :until
+             FROM mdc_ana.mdc_celleff_vers_at_date
+             WHERE context_id = :context;
+  } else {
+    if (strcmp(containerClass,"HMdcTimeCut")==0) {
+      EXEC SQL SELECT version,
+                      hdate.to_ansitime(valid_since),
+                      hdate.to_ansitime(valid_until)
+             INTO :vers, :since, :until
+             FROM mdc_ana.mdc_timecut_vers_at_date
+             WHERE context_id = :context;
+    } else {
+      if (strcmp(containerClass,"HMdcClosePairCutsPar")==0) {
+        EXEC SQL SELECT version,
+                        hdate.to_ansitime(valid_since),
+                        hdate.to_ansitime(valid_until)
+               INTO :vers, :since, :until
+               FROM mdc_ana.closepaircut_vers_at_date
+               WHERE context_id = :context;
+      }
+    }
+  }
+  version=vers;
+  oraSet->versDate[0]=since;
+  oraSet->versDate[1]=until;
+  return getActRunId();
+notfound:
+  return -1;  
+}; 
+
+
+Bool_t HMdcParOraIo::read(HMdcCalParRaw* pPar, Int_t* set) {
+  // reads the calibration parameters and fill the MdcCalParRaw container
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  TArrayI versions(modIds->GetSize());
+  Int_t version=getVersion(pPar,&versions);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (contVers==version) return kTRUE;
+  if (inputNumber==1) pPar->clear();
+  initModules->Reset();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    int vers;
+    struct {
+      int mbo[MDC_MAXCHAN];
+      int tdc[MDC_MAXCHAN];
+      int chan[MDC_MAXCHAN];
+      float sl[MDC_MAXCHAN];
+      float sE[MDC_MAXCHAN];
+      float sM[MDC_MAXCHAN];
+      float o[MDC_MAXCHAN];
+      float oE[MDC_MAXCHAN];
+      float oM[MDC_MAXCHAN];
+    } cal;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HMdcCalParRaw*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE c8 CURSOR FOR
+    SELECT mbo, tdc, chan, slope, slope_err, slope_method,
+           offset, offset_err, offset_method
+      FROM mdc_ana.mdc_cal1par_data
+      WHERE mdc = :id
+        AND version =:vers
+        ORDER BY mbo;
+  Bool_t allFound=kTRUE;
+  HMdcCalParRaw& mdc=*pPar;
+  Int_t pos;
+  for(Int_t i=0;i<6;i++) {
+    HMdcCalParRawSec& sec=mdc[i];
+    for(Int_t j=0;j<4;j++) {
+      HMdcCalParRawMod& mod=sec[j];
+      pos=i*4+j;
+      if (set[pos]) {
+        id=mdcIds->At(pos);
+        vers=versions.At(id);
+        // cout<<pos<<"  "<<id<<"  "<<vers<<endl;
+        if (id>0 && vers>0) {
+          EXEC SQL OPEN c8;
+          EXEC SQL FETCH c8 INTO :cal;
+          Int_t nChannels=-1, mo, mm=-1, mi=-1, ch;
+          nChannels=sqlca.sqlerrd[2];
+          for(Int_t k=0;k<nChannels;k++) {
+            mo=cal.mbo[k];
+            if (mo>mm) {
+              mi++;
+              const char* mboName=mod[mi].GetName();
+              sscanf(mboName,"%i",&mm);
+              if (mo!=mm) {
+                Error("read(HMdcCalParRaw*,Int_t*)",
+                      "MBO %i is missing in parameter container",mm);
+                EXEC SQL CLOSE c8;
+                return kFALSE;
+              }
+              mm=mo;
+            }
+            ch=(cal.tdc[k]-1)*8 + cal.chan[k] - 1;
+            mod[mi][ch].fill(cal.sl[k],cal.o[k],
+                             cal.sE[k],cal.oE[k],
+                             (Int_t)cal.sM[k],(Int_t)cal.oM[k]);
+          }
+          if (nChannels>0) {
+            set[pos]=0;
+            initModules->AddAt(pos+1,pos);
+          }
+          else allFound=kFALSE;
+         }
+        else allFound=kFALSE;
+      }
+    }
+  }
+  EXEC SQL CLOSE c8;
+  setChanged(pPar);
+  printInfo(pPar->GetName());
+  return allFound;
+}; 
+
+
+Bool_t HMdcParOraIo::read(HMdcCal2ParSim* pPar, Int_t* set) {
+  // reads the calibration parameters and fill the MdcCal2ParSim container
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  TArrayI versions(modIds->GetSize());
+  Int_t version=getVersion(pPar,&versions);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (contVers==version) return kTRUE;
+  if (inputNumber==1) pPar->clear();
+  initModules->Reset();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    int vers;
+    struct {
+      int angle[MDC_MAXARR];
+      int dbin[MDC_MAXARR];
+      float d1[MDC_MAXARR];
+      float d2[MDC_MAXARR];
+      float d1e[MDC_MAXARR];
+      float d2e[MDC_MAXARR];
+    } cal2;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HMdcCal2ParSim*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE c9 CURSOR FOR
+    SELECT angle_step, distance_bin,
+           drifttime1, drifttime2, drifttime1_err, drifttime2_err
+      FROM mdc_ana.cal2parsim_data
+      WHERE det_part_id = :id
+        AND vers_id =:vers;
+  Bool_t allFound=kTRUE;
+  HMdcCal2ParSim& mdc=*pPar;
+  Int_t pos;
+  for(Int_t i=0;i<6;i++) {
+    HMdcCal2ParSecSim& sec=mdc[i];
+    for(Int_t j=0;j<4;j++) {
+      HMdcCal2ParModSim& mod=sec[j];
+      pos=i*4+j;
+      if (set[pos]) {
+        id=mdcIds->At(pos);
+        vers=versions.At(id);
+        // cout<<pos<<"  "<<id<<"  "<<vers<<endl;
+        if (id>0 && vers>0) {
+         Int_t nAngles=mod.getSize();
+         Int_t nBins=pPar->getNumberOfBins();
+          EXEC SQL OPEN c9;
+          EXEC SQL FETCH c9 INTO :cal2;
+          Int_t nVal=-1;
+          nVal=sqlca.sqlerrd[2];
+          for(Int_t c=0;c<nVal;c++) {
+            Int_t a=cal2.angle[c];
+            Int_t b=cal2.dbin[c];
+            if (b>nBins || a > nAngles) {
+              Error("read(HMdcCal2ParSim,Int_t*)",
+                    "Buffer size exceeded!");
+              return kFALSE;
+            }
+            mod[a].setDriftTime1(b,cal2.d1[c]);
+            mod[a].setDriftTime2(b,cal2.d2[c]);
+            mod[a].setDriftTime1Error(b,cal2.d1e[c]);
+            mod[a].setDriftTime2Error(b,cal2.d2e[c]);
+          }
+          if (nVal>0) {
+            set[pos]=0;
+            initModules->AddAt(pos+1,pos);
+          }
+          else allFound=kFALSE;
+         }
+        else allFound=kFALSE;
+      }
+    }
+  }
+  EXEC SQL CLOSE c9;
+  setChanged(pPar);
+  printInfo(pPar->GetName());
+  return allFound;
+}; 
+
+
+Bool_t HMdcParOraIo::read(HMdcCellEff* pPar, Int_t* set) {
+  // reads the cell efficiency parameters and fill the container
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  Int_t oraVersion=-1;
+  Int_t version=getVersion(pPar,oraVersion);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (contVers==version) return kTRUE;
+  pPar->clear();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+    struct {
+      int plane[MDC_MAXARR];
+      float an[MDC_MAXARR];
+      float mr[MDC_MAXARR];
+      float sl[MDC_MAXARR];
+    } eff;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HMdcCellEff*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  vers=oraVersion;
+  EXEC SQL SELECT plane, angle, max_r, slope INTO :eff
+      FROM mdc_ana.celleff_data
+      WHERE vers_id =:vers;
+  for(Int_t k=0;k<sqlca.sqlerrd[2];k++) {
+    Int_t p=eff.plane[k]-1;
+    set[p]=0;
+    (*pPar)[p][(Int_t)eff.an[k]].setFunctionValues(eff.mr[k],eff.sl[k]);
+  }
+  for (Int_t i=0;i<4;i++) if (set[i]==1) return kFALSE;
+  setChanged(pPar);
+  cout<<pPar->GetName()<<" initialized from Oracle\n";
+  return kTRUE;
+}; 
+
+
+Bool_t HMdcParOraIo::read(HMdcTimeCut* pPar, Int_t* set) {
+  // reads the time cut parameters and fill the container
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  Int_t oraVersion=-1;
+  Int_t version=getVersion(pPar,oraVersion);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (contVers==version) return kTRUE;
+  pPar->clear();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+    struct {
+      int sec[MDC_MAXMODS];
+      int pla[MDC_MAXMODS];
+      float ct1l[MDC_MAXMODS];
+      float ct1r[MDC_MAXMODS];
+      float ct2l[MDC_MAXMODS];
+      float ct2r[MDC_MAXMODS];
+      float cl[MDC_MAXMODS];
+      float cr[MDC_MAXMODS];
+    } tcuts;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HMdcTimeCut*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  vers=oraVersion;
+  EXEC SQL SELECT sector, plane, cut_t1_l, cut_t1_r, cut_t2_l, cut_t2_r,
+                  cut_left, cut_right INTO :tcuts
+      FROM mdc_ana.mdc_loc_at_run_hist s, mdc_ana.timecut_data d
+      WHERE s.mdc_hwobj_id = d.mdc_hwobj_id and vers_id =:vers;
+  Int_t pos;
+  initModules->Reset();
+  for(Int_t k=0;k<sqlca.sqlerrd[2];k++) {
+    Int_t s=tcuts.sec[k]-1;
+    Int_t p=tcuts.pla[k]-1;
+    pos=s*4+p;
+    if (set[pos]) {
+      (*pPar)[s][p].fill(tcuts.ct1l[k],tcuts.ct1r[k],tcuts.ct2l[k],tcuts.ct2r[k],
+                         tcuts.cl[k],tcuts.cr[k]);
+      set[pos]=0;
+      initModules->AddAt(pos+1,pos);
+    }
+  }
+  Bool_t allFound=kTRUE;
+  for (Int_t i=0;i<MDC_MAXMODS;i++) if (set[i]==1) allFound=kFALSE;
+  setChanged(pPar);
+  printInfo(pPar->GetName());
+  return allFound;
+}; 
+
+Bool_t HMdcParOraIo::read(HMdcClosePairCutsPar* pPar, Int_t* set) {
+  // reads the close pair cut parameters and fill the container
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  Int_t oraVersion=-1;
+  Int_t version=getVersion(pPar,oraVersion);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (contVers==version) return kTRUE;
+  pPar->clear();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+    struct {
+      int lb[MDC_MAXARR];
+      int tb[MDC_MAXARR];
+      int pb[MDC_MAXARR];
+      int eb[MDC_MAXARR];
+      float eff[MDC_MAXARR];
+      float s2b[MDC_MAXARR];
+      float mcs[MDC_MAXARR];
+      float mwc[MDC_MAXARR];
+      float rcc[MDC_MAXARR];
+    } cpcuts;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HMdcTimeCut*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  vers=oraVersion;
+  EXEC SQL SELECT levelbin, thetabin, phibin, effbin,
+                  efficiency, sig2back, mdc_size_cut, mdc_wires_cut,
+                  rich_charge_cut
+      INTO :cpcuts
+      FROM mdc_ana.closepaircut_data
+      WHERE vers_id =:vers;
+  for(Int_t k=0;k<sqlca.sqlerrd[2];k++) {
+    if (cpcuts.lb[k]<=pPar->getSize()) {
+      HMdcClosePairCutsParTheta &the=(*pPar)[cpcuts.lb[k]];
+      if (cpcuts.tb[k]<=the.getSize()) {
+        HMdcClosePairCutsParPhi &phi=the[cpcuts.tb[k]];
+        if (cpcuts.pb[k]<=phi.getSize()) {
+          HMdcClosePairCutsParEf &efb=phi[cpcuts.pb[k]];
+          if (cpcuts.eb[k]<=efb.getSize()) {
+            HMdcClosePairCutsParCut &cut=efb[cpcuts.eb[k]];
+            cut.fill(cpcuts.eff[k],cpcuts.s2b[k],cpcuts.mcs[k],cpcuts.mwc[k],
+                     cpcuts.rcc[k]);
+          } else {
+            Error("HMdcParOraIo::readline()","Eff array out of bounds");
+            return kFALSE;
+          }
+        } else {
+          Error("read(HMdcClosePairCutsPar*,Int*)","Phi array out of bounds");
+          return kFALSE;
+        }
+      } else {
+        Error("read(HMdcClosePairCutsPar*,Int*)","Theta array out of bounds");
+        return kFALSE;
+      }
+    } else {
+      Error("read(HMdcClosePairCutsPar*,Int*)","Level array out of bounds");
+      return kFALSE;
+    }
+  }
+  setChanged(pPar);
+  cout<<pPar->GetName()<<" initialized from Oracle\n";
+  return kTRUE;
+}; 
+
+Int_t HMdcParOraIo::createVersion(HParSet* pPar) {
+  // creates a new version for the parameters
+  // returns the new version
+  if (strlen(pPar->getAuthor())==0) {
+    Error("createVersion(HParSet*)",
+          "%s: author not defined\n",pPar->GetName());
+    return -1;
+  }
+  if (strlen(pPar->getDescription())==0) {
+    Error("createVersion(HParSet*)",
+          "%s: description not defined\n",pPar->GetName());
+    return -1;
+  }
+  EXEC SQL BEGIN DECLARE SECTION;
+    int   vers=-1;
+    int   context;
+    int   run;
+    char* creator;
+    char* descript;
+  EXEC SQL END DECLARE SECTION;
+  context = getContextId(pPar->IsA()->GetName(),pPar->getParamContext());
+  if (context==-1) return -1;
+  run=getActRunId();
+  creator=(char*)pPar->getAuthor();
+  descript=(char*)pPar->getDescription();
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  const char* contName=pPar->IsA()->GetName();
+  if (strcmp(contName,"HMdcCalParRaw")==0) {
+    EXEC SQL EXECUTE
+      BEGIN
+        SELECT mdc_ana.mdc_par_query.next_version INTO :vers FROM DUAL;
+        INSERT INTO mdc_ana.cal1par_vers
+                   (vers_id, orig_context_id, run_id, author, description)
+            VALUES (:vers, :context, :run, :creator, :descript);
+      END;
+    END-EXEC;
+  } else {
+    if (strcmp(contName,"HMdcCellEff")==0) {
+      EXEC SQL EXECUTE
+        BEGIN
+          SELECT mdc_ana.mdc_par_query.next_version INTO :vers FROM DUAL;
+          INSERT INTO mdc_ana.celleff_vers
+                     (vers_id, orig_context_id, run_id, author, description)
+              VALUES (:vers, :context, :run, :creator, :descript);
+        END;
+      END-EXEC;
+    } else {
+      if (strcmp(contName,"HMdcTimeCut")==0) {
+        EXEC SQL EXECUTE
+          BEGIN
+            SELECT mdc_ana.mdc_par_query.next_version INTO :vers FROM DUAL;
+            INSERT INTO mdc_ana.timecut_vers
+                       (vers_id, orig_context_id, run_id, author, description)
+                VALUES (:vers, :context, :run, :creator, :descript);
+          END;
+        END-EXEC;
+      } else {
+        if (strcmp(contName,"HMdcCal2ParSim")==0) {
+          EXEC SQL EXECUTE
+            BEGIN
+              SELECT mdc_ana.mdc_par_query.next_version INTO :vers FROM DUAL;
+              INSERT INTO mdc_ana.cal2parsim_vers
+                         (vers_id, orig_context_id, run_id, author, description)
+                  VALUES (:vers, :context, :run, :creator, :descript);
+            END;
+          END-EXEC;
+        } else {
+          if (strcmp(contName,"HMdcClosePairCutsPar")==0) {
+            EXEC SQL EXECUTE
+              BEGIN
+                SELECT mdc_ana.mdc_par_query.next_version INTO :vers FROM DUAL;
+                INSERT INTO mdc_ana.closepaircut_vers
+                           (vers_id, orig_context_id, run_id, author, description)
+                    VALUES (:vers, :context, :run, :creator, :descript);
+             END;
+            END-EXEC;
+          }
+        }
+      }
+    }
+  }
+  cout<<"Oracle version for "<<pPar->GetName()<<" created:  "<<vers<<endl;
+  return vers;
+not_found:
+  showSqlError("createVersion(HParSet*)");
+  return vers;
+} 
+
+
+Int_t HMdcParOraIo::writePar(HMdcCalParRaw* pPar) {
+  // creates a new version and writes the calibration parameters to Oracle
+  Int_t version=createVersion(pPar);
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int mdc[MDC_MAXCHAN];
+    int mbo[MDC_MAXCHAN];
+    int tdc[MDC_MAXCHAN];
+    int chan[MDC_MAXCHAN];
+    int vers[MDC_MAXCHAN];
+    float sl[MDC_MAXCHAN];
+    float sE[MDC_MAXCHAN];
+    float sM[MDC_MAXCHAN];
+    float o[MDC_MAXCHAN];
+    float oE[MDC_MAXCHAN];
+    float oM[MDC_MAXCHAN];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  Int_t id, pos, mboInd;
+  for(Int_t s=0; s<pPar->getSize(); s++) {
+    HMdcCalParRawSec& rSec= (*pPar)[s];
+    for(Int_t m=0; m<rSec.getSize(); m++) {
+      HMdcCalParRawMod& rMod= rSec[m];
+      pos=s*4+m;
+      id=mdcIds->At(pos);
+      if (id>0) {
+        Int_t nChan=0;
+        for(Int_t l=0; l<rMod.getSize(); l++) {
+          HMdcCalParMbo& rMbo= rMod[l];
+          const char* mboName=rMbo.GetName();
+          sscanf(mboName,"%i",&mboInd);
+          for(Int_t c=0; c<rMbo.getSize(); c++) {
+            HMdcCalParTdc& ch= rMbo[c];
+            Int_t tN=(Int_t)(c/8);
+            Int_t cN=c-tN*8;
+            mdc[nChan]=id;
+            mbo[nChan]=mboInd;
+            tdc[nChan]=tN+1;
+            chan[nChan]=cN+1;
+            sl[nChan]=ch.getSlope();
+            sE[nChan]=ch.getSlopeErr();
+            sM[nChan]=ch.getSlopeMethod();
+            o[nChan]=ch.getOffset();
+            oE[nChan]=ch.getOffsetErr();
+            oM[nChan]=ch.getOffsetMethod();
+            vers[nChan]=version;
+            nChan++;
+          }
+        }
+        if (nChan==0) continue;
+        rows_to_insert=nChan;
+        Int_t nChanO=countTdcChannels(id);
+        if (nChan!=nChanO) {
+          Error("writePar(HMdcCalParRaw*)",
+                "\n Number of Tdc channels in Oracle:        %i\n Number of Tdc channels in MdcCalParRaw:  %i\n",
+                nChanO,nChan);
+          rollback();
+          return -1;
+        }
+        EXEC SQL WHENEVER SQLERROR GOTO not_found;
+        EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+        EXEC SQL FOR :rows_to_insert
+          INSERT INTO mdc_ana.cal1par_data (tdc_channel_id, vers_id,
+                                slope, slope_err, slope_method,
+                                offset, offset_err, offset_method)
+            VALUES (mdc_ana.mdc_par_query.get_tdc_chan_id(:mdc,:mbo,:tdc,:chan),
+                    :vers, :sl, :sE, :sM, :o, :oE, :oM);
+        cout<<"mdc_hwobj_id: "<<id<<"    "<<rows_to_insert<<" rows inserted\n";
+      }
+    }
+  }
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writePar(HMdcCalParRaw*)");
+  rollback();
+  return -1;
+}
+ 
+
+Int_t HMdcParOraIo::writePar(HMdcCellEff* pPar) {
+  // creates a new version and writes the cell effficiency parameters to Oracle
+  Int_t version=createVersion(pPar);
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers[MDC_MAXARR];
+    int plane[MDC_MAXARR];
+    int an[MDC_MAXARR];
+    float mr[MDC_MAXARR];
+    float sl[MDC_MAXARR];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  Int_t i=0;
+  for(Int_t m=0; m<pPar->getSize(); m++) {
+    HMdcCellEffMod& rMod=(*pPar)[m];
+    for(Int_t l=0; l<rMod.getSize(); l++) {
+      HMdcCellEffAngle& rAngle=rMod[l];      
+      vers[i]=version;
+      plane[i]=m+1;
+      an[i]=l;
+      mr[i]=rAngle.getMaxR();
+      sl[i]=rAngle.getSlope();
+      i++;
+    }
+  }
+  if (i==0) {
+    Error("writePar(HMdcCellEff*)",
+          "\n Parameter container is empty!\n");
+    rollback();
+    return -1;
+  }
+  rows_to_insert=i;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL FOR :rows_to_insert
+    INSERT INTO mdc_ana.celleff_data (vers_id, plane, angle, max_r, slope)
+            VALUES (:vers, :plane, :an, :mr, :sl);
+  cout<<rows_to_insert<<" rows inserted\n";
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writePar(HMdcCellEff*)");
+  rollback();
+  return -1;
+}
+ 
+
+Int_t HMdcParOraIo::writePar(HMdcTimeCut* pPar) {
+  // creates a new version and writes the TimeCut parameters to Oracle
+  Int_t version=createVersion(pPar);
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int mdc[MDC_MAXMODS];
+    int vers[MDC_MAXMODS];
+    float ct1l[MDC_MAXMODS];
+    float ct1r[MDC_MAXMODS];
+    float ct2l[MDC_MAXMODS];
+    float ct2r[MDC_MAXMODS];
+    float cl[MDC_MAXMODS];
+    float cr[MDC_MAXMODS];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  Int_t id, pos, i=0;
+  for(Int_t s=0; s<pPar->getSize(); s++) {
+    HMdcTimeCutSec& rSec= (*pPar)[s];
+    for(Int_t m=0; m<rSec.getSize(); m++) {
+      HMdcTimeCutMod& rMod= rSec[m];
+      pos=s*4+m;
+      id=mdcIds->At(pos);
+      if (id>0) {
+        mdc[i]=id;
+        vers[i]=version;
+        ct1l[i]=rMod.getCutTime1Left();
+        ct1r[i]=rMod.getCutTime1Right();
+        ct2l[i]=rMod.getCutTime2Left();
+        ct2r[i]=rMod.getCutTime2Right();
+        cl[i]=rMod.getCutTimeLeft();
+        cr[i]=rMod.getCutTimeRight();
+        i++;
+      }
+    }
+  }
+  if (i==0) {
+    Error("writePar(HMdcTimeCut*)",
+          "\n Parameter container is empty!\n");
+    rollback();
+    return -1;
+  }
+  rows_to_insert=i;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL FOR :rows_to_insert
+    INSERT INTO mdc_ana.timecut_data (mdc_hwobj_id, vers_id,
+           cut_t1_l, cut_t1_r, cut_t2_l, cut_t2_r, cut_left, cut_right)
+        VALUES (:mdc, :vers, :ct1l, :ct1r, :ct2l, :ct2r, :cl, :cr);
+  cout<<rows_to_insert<<" rows inserted\n";
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writePar(HMdcTimeCut*)");
+  rollback();
+  return -1;
+}
+
+
+Int_t HMdcParOraIo::writePar(HMdcCal2ParSim* pPar) {
+  // creates a new version and writes the calibration parameters to Oracle
+  Int_t version=createVersion(pPar);
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers[MDC_MAXARR];
+    int mdc[MDC_MAXARR];
+    int angle[MDC_MAXARR];
+    int dbin[MDC_MAXARR];
+    float d1[MDC_MAXARR];
+    float d2[MDC_MAXARR];
+    float d1e[MDC_MAXARR];
+    float d2e[MDC_MAXARR];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  Int_t id, pos;
+  for(Int_t s=0; s<pPar->getSize(); s++) {
+    HMdcCal2ParSecSim& rSec= (*pPar)[s];
+    for(Int_t m=0; m<rSec.getSize(); m++) {
+      HMdcCal2ParModSim& rMod= rSec[m];
+      pos=s*4+m;
+      id=mdcIds->At(pos);
+      if (id>0) {
+        Int_t nVal=0;
+        for(Int_t l=0; l<rMod.getSize(); l++) {
+          HMdcCal2ParAngleSim& rAngle= rMod[l];
+          for(Int_t c=0; c<pPar->getNumberOfBins(); c++) {
+            if (nVal>MDC_MAXARR) {
+              Error("writePar(HMdcCal2ParSim",
+                    "Buffer size exceeded!");
+              rollback();
+              return -1;
+            }
+            vers[nVal]=version;
+            mdc[nVal]=id;
+            angle[nVal]=l;
+            dbin[nVal]=c;
+            d1[nVal]=rAngle.getDriftTime1(c);            
+            d2[nVal]=rAngle.getDriftTime2(c);            
+            d1e[nVal]=rAngle.getDriftTime1Error(c);            
+            d2e[nVal]=rAngle.getDriftTime2Error(c);            
+            nVal++;
+          }
+        }
+        rows_to_insert=nVal;
+        EXEC SQL WHENEVER SQLERROR GOTO not_found;
+        EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+        EXEC SQL FOR :rows_to_insert
+          INSERT INTO mdc_ana.cal2parsim_data (
+            vers_id, det_part_id, angle_step, distance_bin,
+            drifttime1, drifttime2, drifttime1_err, drifttime2_err )
+            VALUES (:vers, :mdc, :angle, :dbin, :d1, :d2, :d1e, :d2e);
+        cout<<"mdc_hwobj_id: "<<id<<"    "<<rows_to_insert<<" rows inserted\n";
+      }
+    }
+  }
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writePar(HMdcCal2ParSim*)");
+  rollback();
+  return -1;
+}
+
+Int_t HMdcParOraIo::writePar(HMdcClosePairCutsPar* pPar) {
+  // creates a new version and writes the ClosePairCuts parameters to Oracle
+  Int_t version=createVersion(pPar);
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers[MDC_MAXARR];
+    int lb[MDC_MAXARR];
+    int tb[MDC_MAXARR];
+    int pb[MDC_MAXARR];
+    int eb[MDC_MAXARR];
+    float eff[MDC_MAXARR];
+    float s2b[MDC_MAXARR];
+    float mcs[MDC_MAXARR];
+    float mwc[MDC_MAXARR];
+    float rcc[MDC_MAXARR];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  Int_t i=0;
+  for(Int_t lev=0;lev<pPar->getSize();lev++) {
+    HMdcClosePairCutsParTheta& the=(*pPar)[lev];
+    for(Int_t th=0;th<the.getSize();th++) {
+      HMdcClosePairCutsParPhi& phi=the[th];
+      for(Int_t p=0;p<phi.getSize();p++) {
+        HMdcClosePairCutsParEf& ef=phi[p];
+        for(Int_t e=0;e<ef.getSize();e++) {
+          HMdcClosePairCutsParCut& cut=ef[e];
+          vers[i]=version;
+          lb[i]=lev;
+          tb[i]=th;
+          pb[i]=p;
+          eb[i]=e;
+          eff[i]=cut.getEfficiency();
+          s2b[i]=cut.getSig2Back();
+          mcs[i]=cut.getMdcClsSizeCut();
+          mwc[i]=cut.getMdcContWiresCut();
+          rcc[i]=cut.getRichIntChargeCut();
+          i++;
+        }
+      }
+    }
+  }
+  if (i==0) {
+    Error("writePar(HMdcClosePairCutsPar*)",
+          "\n Parameter container is empty!\n");
+    rollback();
+    return -1;
+  }
+  rows_to_insert=i;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL FOR :rows_to_insert
+    INSERT INTO mdc_ana.closepaircut_data (vers_id, levelbin,
+           thetabin, phibin, effbin, efficiency, sig2back,
+           mdc_size_cut, mdc_wires_cut, rich_charge_cut)
+        VALUES (:vers, :lb, :tb, :pb, :eb, :eff, :s2b, :mcs, :mwc, :rcc);
+  cout<<rows_to_insert<<" rows inserted\n";
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writePar(HMdcClosePairCutsPar*)");
+  rollback();
+  return -1;
+}
+
+Int_t HMdcParOraIo::countTdcChannels(Int_t mdc) {
+  // returns the number of TDC channels of a module
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    int num;
+  EXEC SQL END DECLARE SECTION;
+  id=mdc;
+  EXEC SQL WHENEVER SQLERROR DO
+    showSqlError("countTdcChannels(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT COUNT(tdc_channel_id) INTO :num
+           FROM mdc_ana.tdc_channel WHERE mdc_hwobj_id=:id;
+  return num;
+notfound:
+  return 0;
+}
+
+Bool_t HMdcParOraIo::read(HMdcTdcThreshold* pPar,Int_t* set) {
+  // reads the calibration parameters and fill the MdcCalParRaw container
+  Int_t contVers=pPar->getOraVersion();
+  if (contVers==-1) {
+    Error("read(HMdcTdcThreshold*,Int_t*)","Specify Oracle input version!");
+    return kFALSE;
+  }
+  pPar->clear();
+  initModules->Reset();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+    struct {
+      int sec[MDC_MAXARR];
+      int pla[MDC_MAXARR];
+      int mbo[MDC_MAXARR];
+      int dbo[MDC_MAXARR];
+      varchar thr[MDC_MAXARR][3];
+    } thrdata;
+  EXEC SQL END DECLARE SECTION;
+  Int_t s, p, pos, lastPos=-1, mo, mm=-1, mi=-1, v=-1;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  Bool_t allFound=kTRUE;
+  vers=contVers;
+  EXEC SQL SELECT sector, plane, mbo, dbo, thr
+           INTO :thrdata
+           FROM mdc_ana.mdc_thr_data
+           WHERE version = :vers
+           ORDER BY sector, plane, mbo, dbo;
+  for (Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+    s=thrdata.sec[i]-1;
+    p=thrdata.pla[i]-1;
+    pos=s*4+p;
+    if (pos!=lastPos && set[pos]>0) {
+      set[pos]=0;
+      initModules->AddAt(pos+1,pos);
+      mm=-1;
+      mi=-1;
+      lastPos=pos;
+    }
+    if (!initModules->At(pos)) continue;  
+    HMdcTdcThresholdMod& mod=(*pPar)[s][p];
+    mo=thrdata.mbo[i];
+    if (mo>mm) {
+      mi++;
+      const char* mboName=mod[mi].GetName();
+      sscanf(mboName,"%i",&mm);
+      if (mo!=mm) {
+        Error("read(HMdcTdcThreshold*,Int_t*)",
+                      "MBO %i is missing in parameter container",mm);
+        return kFALSE;
+      }
+      mm=mo;
+    }
+    thrdata.thr[i].arr[thrdata.thr[i].len]='\0';
+    // cout<<s<<" "<<p<<" "<<mm<<" "<<thrdata.dbo[i]-1<<" "<<thrdata.thr[i].arr<<endl;
+    sscanf((char*)thrdata.thr[i].arr,"%x",&v);
+    mod[mi][thrdata.dbo[i]-1].setThreshold(v);
+  }
+  pPar->setChanged();
+  pPar->setOraVersion(vers);
+  pPar->setInputVersion(vers,inputNumber);
+  for(Int_t i=0;i<MDC_MAXMODS;i++) {
+    if (set[i]==1 && initModules->At(i)==0) allFound=kFALSE;
+  }
+  printInfo(pPar->GetName());
+  return allFound;
+not_found:
+  showSqlError("read(HMdcTdcThreshold*,Int_t*)");
+  return -1;
+}
+
+Int_t HMdcParOraIo::createVersion(HMdcTdcThreshold* pPar) {
+  // creates a new version for the parameters
+  // returns the new version
+  if (strlen(pPar->getAuthor())==0) {
+    Error("createVersion(HParSet*)",
+          "%s: author not defined\n",pPar->GetName());
+    return -1;
+  }
+  if (strlen(pPar->getDescription())==0) {
+    Error("createVersion(HParSet*)",
+          "%s: description not defined\n",pPar->GetName());
+    return -1;
+  }
+  EXEC SQL BEGIN DECLARE SECTION;
+    int   vers=-1;
+    char* creator;
+    char* descript;
+  EXEC SQL END DECLARE SECTION;
+  creator=(char*)pPar->getAuthor();
+  descript=(char*)pPar->getDescription();
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    BEGIN
+      SELECT mdc_ana.mdc_par_query.next_version INTO :vers FROM DUAL;
+      INSERT INTO mdc_ana.thr_vers
+                 (vers_id, author, description)
+          VALUES (:vers, :creator, :descript);
+    END;
+  END-EXEC;
+  cout<<"Oracle version for "<<pPar->GetName()<<" created:  "<<vers<<endl;
+  return vers;
+not_found:
+  showSqlError("createVersion(HMdcTdcThreshold*)");
+  return vers;
+}
+
+Int_t HMdcParOraIo::writePar(HMdcTdcThreshold* pPar) {
+  // creates a new version and writes the threshold parameters to Oracle
+  Int_t version=createVersion(pPar);
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int sec[MDC_MAXARR];
+    int pla[MDC_MAXARR];
+    int mbo[MDC_MAXARR];
+    int dbo[MDC_MAXARR];
+    int vers[MDC_MAXARR];
+    char thr [MDC_MAXARR][3];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  Int_t mboInd, nDbo=0;
+  for(Int_t s=0; s<pPar->getSize(); s++) {
+    HMdcTdcThresholdSec& rSec= (*pPar)[s];
+    for(Int_t m=0; m<rSec.getSize(); m++) {
+      HMdcTdcThresholdMod& rMod= rSec[m];
+      for(Int_t l=0; l<rMod.getSize(); l++) {
+        HMdcTdcThresholdMbo& rMbo= rMod[l];
+        const char* mboName=rMbo.GetName();
+        sscanf(mboName,"%i",&mboInd);
+        for(Int_t c=0; c<rMbo.getSize(); c++) {
+          sec[nDbo]=s+1;
+          pla[nDbo]=m+1;
+          mbo[nDbo]=mboInd;
+          dbo[nDbo]=c+1;
+          sprintf(thr[nDbo],"%x",rMbo[c].getThreshold());
+          // cout<<sec[nDbo]<<" "<<pla[nDbo]<<" "<<mbo[nDbo]<<" "<<dbo[nDbo]<<" "<<thr[nDbo]<<endl;
+          vers[nDbo]=version;
+          nDbo++;
+        }
+      }
+    }
+  }
+  rows_to_insert=nDbo;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL FOR :rows_to_insert
+    INSERT INTO mdc_ana.thr_data (thr_address_id, vers_id, threshold)
+        VALUES (mdc_ana.mdc_par_query.get_thr_address_id(:sec,:pla,:mbo,:dbo),
+                    :vers, :thr);
+  cout<<"Thresholds: "<<rows_to_insert<<" rows inserted\n";
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writePar(HMdcTdcThreshold*)");
+  rollback();
+  return -1;
+}
+

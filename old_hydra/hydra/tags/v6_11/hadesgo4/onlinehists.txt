@@ -1,0 +1,110 @@
+#################################################################
+#  HGo4OnlineConfig
+#################################################################
+[Go4OnlineConfig]
+//---------------------------------------------
+nLoop: i 100
+triggerrefresh: i 500
+startrefresh: i 500
+richrefresh: i 500
+mdcrefresh: i 500
+tofrefresh: i 500
+tofinorefresh: i 500
+showerrefresh: i 500
+trigger: i 0
+start: i 1
+startRaw: i 1
+startCal: i 0
+startHit: i 0
+rich: i 0
+richRaw: i 1
+richCal: i 0
+richHit: i 0
+mdc: i 1
+mdcRaw: i 1
+mdcCal: i 1
+mdcHit: i 0
+tof: i 1
+tofRaw: i 1
+tofCal: i 1
+tofHit: i 0
+tofino: i 1
+tofinoRaw: i 1
+tofinoCal: i 0
+shower: i 1
+showerRaw: i 1
+showerCal: i 0
+showerHit: i 0
+#################################################################
+#################################################################
+#  HMdcHistBooker
+#################################################################
+[MdcHistBooker]
+//---------------------------------------------
+htime1Raw: s FORMAT#mon TYPE#1F NAME#hMdctime1Raw TITLE#Mdc_time1Raw ACTIVE#0 RESET#1 REFRESH#500 BIN#2048:0.0:2048.0:0:0.0:0.0 SIZE#0:0 AXIS#time1_[channels]:counts:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#2:0 FILL#46:0 MARKER#0:0:0 RANGE#-99:-99
+htime1Cal1: s FORMAT#mon TYPE#1F NAME#hMdctime1Cal1 TITLE#Mdc_time1Cal1 ACTIVE#0 RESET#1 REFRESH#500 BIN#800:-100:700:0:0:0 SIZE#0:0 AXIS#time1_[ns]:counts:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#2:0 FILL#38:0 MARKER#0:0:0 RANGE#-99:-99
+htime1Cal1MeanTrend: s FORMAT#trend TYPE#1F NAME#hMdctime1Cal1MeanTrend TITLE#Mdc_time1Cal1MeanTrend ACTIVE#1 RESET#0 REFRESH#500 BIN#100:0:100:0:0:0 SIZE#0:0 AXIS#trend:mean_time1[ns]:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#2:0 FILL#0:0 MARKER#0:0:0 RANGE#50:65
+htime1Cal1MeanTrendTemp: s FORMAT#mon TYPE#1F NAME#hMdctime1Cal1MeanTrendtemp TITLE#time1Cal1MeanTrendtemp ACTIVE#1 RESET#1 REFRESH#500  BIN#800:-100:700:0:0:0 SIZE#0:0 AXIS#no:no:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#0:0 LINE#0:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+hcutstat: s FORMAT#array TYPE#1F NAME#hMdccutstat TITLE#Mdc_hcutstat ACTIVE#1 RESET#1 REFRESH#500 BIN#24:0:24:0:0:0 SIZE#1:4 AXIS#modules[1-24]:ratio:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#0:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+hcutstatM: s FORMAT#array TYPE#1F NAME#hMdccutstatM TITLE#Mdc_hcutstat ACTIVE#1 RESET#1 REFRESH#500 BIN#24:0:24:0:0:0 SIZE#1:4 AXIS#modules[1-24]:ratio:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#0:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+hcal1hits: s FORMAT#mon TYPE#2F NAME#hMdccal1hits TITLE#Mdc_hcal1hits ACTIVE#1 RESET#1 REFRESH#500 BIN#6:0:6:4:0:4 SIZE#0:0 AXIS#sector:module:counts DIR#no OPT#LEGO2 STATS#0 LOG#0:0:0 GRID#0:0 LINE#0:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+hrawRoc_Subev: s FORMAT#mon TYPE#2F NAME#hMdcrawRoc_Subev TITLE#Mdc_Raw_Roc_SubEvent_Size ACTIVE#1 RESET#1 REFRESH#500 BIN#40:0:160:5:1:6 SIZE#0:0 AXIS#:sub_evt_size:roc:counts DIR#no OPT#LEGO2 STATS#0 LOG#0:0:1 GRID#0:0 LINE#0:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+hrawError_Stat: s FORMAT#mon TYPE#2F NAME#hMdcrawError_Stat TITLE#Mdc_Raw_Error_Stat ACTIVE#1 RESET#1 REFRESH#500 BIN#24:0:24:4:0:4 SIZE#0:0 AXIS#:modules[1-24]:error_bit:no DIR#no OPT#COLZ STATS#0 LOG#0:0:0 GRID#1:1 LINE#0:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+colorsSector: i 2, 4, 6, 8, 38, 46
+colorsModule: i 2, 4, 6, 8
+colorsCuts: i   3, 5, 4, 2
+#################################################################
+#################################################################
+#  HRichHistBooker
+#################################################################
+[RichHistBooker]
+//---------------------------------------------
+hpulseheight: s FORMAT#array TYPE#1F NAME#hRichpulsheight TITLE#Rich_pulse_Height ACTIVE#1 RESET#1 REFRESH#5000 BIN#200:0.0:200.0:0:0.0:0.0 SIZE#1:6 AXIS#pulse_height_[channels]:counts:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#1:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+hpulseheightM: s FORMAT#array TYPE#1F NAME#hRichpulsheightM TITLE#Rich_pulse_Height ACTIVE#1 RESET#1 REFRESH#5000 BIN#200:0.0:200.0:0:0.0:0.0 SIZE#1:6 AXIS#pulse_height_[channels]:counts:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#1:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+colorsSector: i 2, 4, 6, 8, 38, 46
+colorsModule: i 2, 4, 6, 8
+colorsCuts: i   3, 5, 4, 2
+#################################################################
+#################################################################
+#  HStartHistBooker
+#################################################################
+[StartHistBooker]
+//---------------------------------------------
+hstrips_start_veto_raw: s FORMAT#array TYPE#1F NAME#hStartstrips_start_veto_raw TITLE#Start_Raw_Strips_Start_Veto ACTIVE#1 RESET#1 REFRESH#500 BIN#10:0.0:10.0:0:0.0:0.0 SIZE#1:2 AXIS#strip_number_[channels]:counts:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#1:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+hstrips_start_veto_rawM: s FORMAT#array TYPE#1F NAME#hStartstrips_start_veto_rawM TITLE#Start_Raw_Strips_Start_Veto ACTIVE#1 RESET#1 REFRESH#500 BIN#10:0.0:10.0:0:0.0:0.0 SIZE#1:2 AXIS#strip_number_[channels]:counts:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#1:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+colorsModule: i 2, 4
+colorsCuts: i   3, 5, 4, 2
+#################################################################
+#################################################################
+#  HTofHistBooker
+#################################################################
+[TofHistBooker]
+//---------------------------------------------
+hhits_raw: s FORMAT#array TYPE#1F NAME#hTofhits_raw TITLE#Tof_Raw_Hits ACTIVE#1 RESET#1 REFRESH#5000 BIN#100:0.0:100.0:0:0.0:0.0 SIZE#1:6 AXIS#cells:counts:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#1:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+hhits_rawM: s FORMAT#array TYPE#1F NAME#hTofhits_rawM TITLE#Tof_Raw_Hits ACTIVE#1 RESET#1 REFRESH#5000 BIN#100:0.0:100.0:0:0.0:0.0 SIZE#1:6 AXIS#cells:counts:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#1:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+colorsSector: i 2, 4, 6, 8, 38, 46
+colorsModule: i 2, 4, 6, 8
+colorsCuts: i   3, 5, 4, 2
+#################################################################
+#################################################################
+#  HTofinoHistBooker
+#################################################################
+[TofinoHistBooker]
+//---------------------------------------------
+hhits_raw: s FORMAT#array TYPE#1F NAME#hTofinohits_raw TITLE#Tofino_Raw_Hits ACTIVE#1 RESET#1 REFRESH#5000 BIN#6:0.0:6.0:0:0.0:0.0 SIZE#1:6 AXIS#cells:counts:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#1:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+hhits_rawM: s FORMAT#array TYPE#1F NAME#hTofinohits_rawM TITLE#Tofino_Raw_Hits ACTIVE#1 RESET#1 REFRESH#5000 BIN#6:0.0:6.0:0:0.0:0.0 SIZE#1:6 AXIS#cells:counts:no DIR#no OPT#no STATS#0 LOG#0:0:0 GRID#1:1 LINE#1:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+colorsSector: i 2, 4, 6, 8, 38, 46
+colorsModule: i 2, 4, 6, 8
+colorsCuts: i   3, 5, 4, 2
+#################################################################
+#################################################################
+#  HShowerHistBooker
+#################################################################
+[ShowerHistBooker]
+//---------------------------------------------
+hhitsRaw: s FORMAT#mon TYPE#2F NAME#hShowerhits_raw TITLE#Shower_Raw_Hits ACTIVE#1 RESET#1 REFRESH#500 BIN#6:0.0:6.0:3:0.0:3.0 SIZE#1:2 AXIS#sector:module:counts DIR#no OPT#LEGO2 STATS#0 LOG#0:0:0 GRID#0:0 LINE#1:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+hhitsRawM: s FORMAT#mon TYPE#2F NAME#hShowerhits_rawM TITLE#Shower_Raw_Hits ACTIVE#1 RESET#1 REFRESH#500 BIN#6:0.0:6.0:3:0.0:3.0 SIZE#1:2 AXIS#sector:module:counts DIR#no OPT#LEGO2 STATS#0 LOG#0:0:0 GRID#0:0 LINE#1:0 FILL#0:0 MARKER#0:0:0 RANGE#-99:-99
+colorsSector: i 2, 4, 6, 8, 38, 46
+colorsModule: i 2, 4, 6, 8
+colorsCuts: i   3, 5, 4, 2
+#################################################################

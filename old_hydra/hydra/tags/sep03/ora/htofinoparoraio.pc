@@ -1,0 +1,837 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Modified : 02/04/2003 by T. Wojcik
+//*-- Modified : 26/04/2002 by I. Koenig
+//*-- Created : 08/01/2001
+
+//////////////////////////////////////////////////////////////////////////////
+// HTofinoParOraIo
+//
+// Interface class to database Oracle for input/output of parameters needed
+// by the Tofino
+// (uses the Oracle C/C++ precompiler)
+//
+//////////////////////////////////////////////////////////////////////////////
+using namespace std;
+#include "htofinoparoraio.h"
+#include "hades.h"
+#include "hlocation.h"
+#include "hspectrometer.h"
+#include "htofinocalpar.h"
+#include "htofinodetector.h"
+#include "htofinolookup.h"
+#include "htofinogeompar.h"
+#include "htofinoshowermap.h"
+#include "hgeomcompositevolume.h"
+#include <iostream>
+#include <iomanip>
+#include <unistd.h>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// SQL Communications Area
+#include <sqlca.h>
+
+ClassImp(HTofinoParOraIo)
+
+#define TOFINO_MAXMODS 6
+#define TOFINO_MAXCELL 4
+#define TOFINO_MAXCHAN 48
+#define SHOWER_MAXPADS 1024
+#define SHOWER_MAXROWS 32
+#define SHOWER_MAXCOLS 32
+#define NO_TOFINO_CELL 9 //For shower Tofino Map
+
+HTofinoParOraIo::HTofinoParOraIo(HOraConn* pC) : HDetParOraIo(pC) {
+  // constructor
+  // sets the name of the I/O class "HTofinoParIo"
+  // gets the pointer to the connection class
+  fName="HTofinoParIo";
+  numModules=0;
+  tofinoIds=0;
+  initModules=0;
+}
+
+
+HTofinoParOraIo::~HTofinoParOraIo() {
+  // destructor
+  if (tofinoIds) delete tofinoIds;
+  if (initModules) delete initModules;
+}
+  
+
+Bool_t HTofinoParOraIo::init(HParSet* pPar,Int_t* set) {
+  // calls special read-function for each parameter container
+  const Text_t* name=pPar->IsA()->GetName();
+  if (startIo(pPar)<=0) return kFALSE;
+  if (strcmp(name,"HTofinoLookup")==0) return read(((HTofinoLookup*)pPar),set); 
+  if (strcmp(name,"HTofinoGeomPar")==0) return read(((HTofinoGeomPar*)pPar),set);
+  if (strcmp(name,"HTofinoCalPar")==0) return read(((HTofinoCalPar*)pPar),set);
+  if (strcmp(name,"HTofinoShowerMap")==0) return read(((HTofinoShowerMap*)pPar),set);
+  cout<<"initialization of "<<name<<" not possible from Oracle!"<<endl;
+  return kFALSE;
+}
+
+
+Int_t HTofinoParOraIo::write(HParSet* pPar) {
+  // calls the appropriate write function for the container
+  const Text_t* name=pPar->IsA()->GetName();
+  if (startIo(pPar)<=0) return kFALSE;
+  if (strcmp(name,"HTofinoGeomPar")==0) return writeAlignment((HTofinoGeomPar*)pPar);
+  if (strcmp(name,"HTofinoCalPar")==0) return writePar((HTofinoCalPar*)pPar);
+  if (strcmp(name,"HTofinoShowerMap")==0) return writePar((HTofinoShowerMap*)pPar);
+  cout<<"No write-interface to Oracle for parameter container "
+      <<pPar->GetName()<<endl;
+  return 0;
+}
+
+
+Int_t HTofinoParOraIo::startIo(HParSet* pPar) {
+  // Gets the run start of the actual run
+  // reads the detector setup from Oracle for the first run and return the number modules found
+  // Returns -1, if the run is not found, or 0, if no modules are found for this run
+  runStart=getRunStart(pPar);
+  if (runStart>0 && tofinoIds==0) readIds();
+  if (runStart==-1 || numModules<=0) {
+    pPar->setInputVersion(-1,inputNumber);
+    return -1;
+  }
+  return runStart;
+}
+
+
+Int_t HTofinoParOraIo::readIds() {
+  // reads the id numbers of all modules defined for the actual run
+  // and stores them in array tofinoIds
+  // returns the run id if at least one module can be found
+  // returns -1 if nothing is found
+  HTofinoDetector* det=(HTofinoDetector*)(gHades->getSetup()->getDetector("Tofino"));
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id[TOFINO_MAXMODS];
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readIds()");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT module
+    INTO :id
+    FROM tofino_ana.det_setup_at_run_hist;
+  numModules=sqlca.sqlerrd[2];
+  if (numModules>0) {
+    tofinoIds=new TArrayI(TOFINO_MAXMODS);
+    for(Int_t i=0;i<TOFINO_MAXMODS;i++) tofinoIds->AddAt(0,i);
+    initModules=new TArrayI(TOFINO_MAXMODS);
+  }    
+  for(Int_t i=0;i<numModules;i++) {
+    Int_t s=id[i]-1;
+    if (det->getModule(s,0)) tofinoIds->AddAt(id[i],s);
+  }
+  return numModules;
+}
+
+void HTofinoParOraIo::printIds() {
+  // prints the id numbers of all modules
+  if (tofinoIds) {
+    for(Int_t i=0;i<TOFINO_MAXMODS;i++)
+      cout<<"sector: "<<i+1<<"   tofino id: "<<tofinoIds->At(i)<<"\n";
+  }
+}
+
+Int_t HTofinoParOraIo::getParVersion(HParSet *pPar, Int_t *versions){
+	//Reads the newest version number for parameters *TofinoPar*
+    //valid for the curent event file 
+    HParOraSet* oraSet=getOraSet(pPar);
+    runStart = getRunStart(pPar);
+    if (oraSet->contextId==-1 || runStart==-1) return -1;
+    Int_t contVers=pPar->getInputVersion(inputNumber);
+    if ( contVers!=-1 && runStart>=oraSet->versDate[0]
+                    && runStart<=oraSet->versDate[1] )
+         return contVers;
+    const char* containerClass=pPar->IsA()->GetName();
+    oraSet->clearVersDate();
+    EXEC SQL BEGIN DECLARE SECTION;
+        struct {
+            int  sec[TOFINO_MAXMODS];
+            int  vers[TOFINO_MAXMODS];
+            double since[TOFINO_MAXMODS];
+            double until[TOFINO_MAXMODS];
+        } par_vers;
+        struct {
+            short sec[TOFINO_MAXMODS];
+            short vers[TOFINO_MAXMODS];
+            short since[TOFINO_MAXMODS];
+            short until[TOFINO_MAXMODS];
+    } par_vers_ind;
+    int context;
+    EXEC SQL END DECLARE SECTION;
+    EXEC SQL WHENEVER SQLERROR DO showSqlError("getParVersion(HParOraSet*)");
+    EXEC SQL WHENEVER NOT FOUND CONTINUE;
+    context = oraSet->contextId;
+
+	if (strcmp(containerClass,"HTofinoCalPar")==0) {
+    	EXEC SQL SELECT sector, vers_id,
+                    hdate.to_ansitime(valid_since),
+                    hdate.to_ansitime(valid_until)
+             INTO :par_vers INDICATOR :par_vers_ind
+             FROM tofino_ana.tofino_cal_par_vers_at_date
+             WHERE context_id = :context;
+	}
+	if (strcmp(containerClass,"HTofinoShowerMap")==0) {
+		EXEC SQL SELECT sector, vers_id,
+                    hdate.to_ansitime(valid_since),
+                    hdate.to_ansitime(valid_until)
+             INTO :par_vers INDICATOR :par_vers_ind
+             FROM tofino_ana.tofino_shower_map_vers_at_date
+             WHERE context_id = :context;
+
+	}
+	for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+        Int_t s = par_vers.sec[i]-1;
+		versions[s] = par_vers.vers[i];
+        if (par_vers.since[i]>oraSet->versDate[0])
+             oraSet->versDate[0]=par_vers.since[i];
+        if (par_vers.until[i]<oraSet->versDate[1])
+            oraSet->versDate[1]=par_vers.until[i];
+    }
+	if (oraSet->versDate[0]>=0) return getActRunId();
+    return -1;
+
+}
+
+Int_t HTofinoParOraIo::getLookupVersion(HTofinoLookup* pPar) { 
+  // reads the newest version number for the lookup table needed by the
+  // unpacker valid for the current event file
+  HParOraSet* oraSet=getOraSet(pPar);
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  Double_t dateRange[2];
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      double c_since;
+      double c_until;
+      double r_since;
+      double r_until;
+    } lvrec;
+    struct {
+      short c_since_ind;
+      short c_until_ind;
+      short r_since_ind;
+      short r_until_ind;
+    } lvrec_ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getLookupVersion(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT hdate.to_ansitime(config_since), 
+                  hdate.to_ansitime(config_until),
+                  hdate.to_ansitime(dc_since),
+                  hdate.to_ansitime(dc_until)
+    INTO :lvrec INDICATOR :lvrec_ind
+    FROM tof_ana.tofino_lookup_time_range_hist;
+  if (lvrec.c_since!=-1) dateRange[0]=lvrec.c_since;
+  if (lvrec.r_since!=-1 && lvrec.r_since>dateRange[0]) dateRange[0]=lvrec.r_since;
+  if (lvrec.c_until!=-1) dateRange[1]=lvrec.c_until;
+  if (lvrec.r_until!=-1 && lvrec.r_until<dateRange[1]) dateRange[1]=lvrec.r_until;
+  if (contVers==-1 || runStart<oraSet->versDate[0] || runStart>oraSet->versDate[1] ||
+      dateRange[0]!=oraSet->versDate[0] || dateRange[1]!=oraSet->versDate[1]) {
+    oraSet->versDate[0]=dateRange[0];
+    oraSet->versDate[1]=dateRange[1];
+    return getActRunId();
+  } else return contVers;
+notfound:
+  oraSet->clearVersDate();
+  return -1;
+};
+
+
+Bool_t HTofinoParOraIo::read(HTofinoLookup* pPar, Int_t* set) {
+  // reads the lookup table (parameter container TofinoLookup) needed by the unpacker
+  Int_t version=getLookupVersion(pPar);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (version==pPar->getInputVersion(inputNumber)) return kTRUE;
+  pPar->clear();
+  initModules->Reset();
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int crate[TOFINO_MAXCHAN];
+      int slot[TOFINO_MAXCHAN];
+      int chan[TOFINO_MAXCHAN];
+      char branch[TOFINO_MAXCHAN][2];
+      int mod[TOFINO_MAXCHAN];
+      int cell[TOFINO_MAXCHAN];
+    } lrec;
+    struct {
+      short crate[TOFINO_MAXCHAN];
+      short slot[TOFINO_MAXCHAN];
+      short chan[TOFINO_MAXCHAN];
+      short branch[TOFINO_MAXCHAN];
+      short mod[TOFINO_MAXCHAN];
+      short cell[TOFINO_MAXCHAN];
+    } lrec_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HTofinoLookup*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT crate, slot, channel, branch, module, paddle
+           INTO :lrec INDICATOR :lrec_Ind
+           FROM tof_ana.tofino_lookup_at_histdate;
+  for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+    Int_t s=lrec.mod[i]-1;
+    if (set[s]) {
+      pPar->setAddress(lrec.crate[i]-1,lrec.slot[i]-1,lrec.branch[i][0],
+                   lrec.chan[i],s,0,lrec.cell[i]-1);
+      initModules->AddAt(s+1,s);
+    }
+  }
+  Bool_t allFound=kTRUE;
+  for(Int_t i=0;i<TOFINO_MAXMODS;i++) {
+    if (set[i]>0 && initModules->At(i)<=0) allFound=kFALSE;
+  }
+  if (allFound) {
+    pPar->setInputVersion(version,inputNumber);
+    setChanged(pPar);
+    printInfo(pPar->GetName());
+  } else pPar->clear();
+  return allFound;
+}
+
+
+Bool_t HTofinoParOraIo::read(HTofinoGeomPar* pPar, Int_t* set) {
+  // reads the geometry of the MDC and fills the MdcGeomPar container
+  Bool_t allFound=kTRUE;
+  if (pPar->isFirstInitialization()) {
+    if (!readModGeomNames(pPar,set) || !readCompGeomNames(pPar,set)) allFound=kFALSE;
+  }
+  if (allFound) return readGeometry(pPar,set);
+  pPar->clear();
+  return kFALSE;    
+}
+
+
+Bool_t HTofinoParOraIo::readModGeomNames(HTofinoGeomPar* pPar,Int_t* set) {
+  // reads the tofino_pos_id of all modules
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int id[TOFINO_MAXMODS];
+      varchar oname[TOFINO_MAXMODS][9];
+    } mods;
+    struct {
+      short id_Ind[TOFINO_MAXMODS];
+      short oname_Ind[TOFINO_MAXMODS];
+    } mods_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readModGeomNames()");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT module, geom_obj
+    INTO :mods INDICATOR :mods_Ind
+    FROM tofino_ana.det_setup_at_run_hist;
+  char ref[10];
+  initModules->Reset();
+  for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+    Int_t s=mods.id[i]-1;
+    HModGeomPar* pMod=pPar->getModule(s,0);
+    if (pMod && set[s]) {
+      if (mods_Ind.oname_Ind[i]!=-1) {
+        mods.oname[i].arr[mods.oname[i].len]='\0';
+        pMod->SetName((char*)(mods.oname[i].arr));
+        initModules->AddAt(s+1,s);
+        strcpy(ref,(char*)(mods.oname[i].arr));
+        ref[3]='1'; // reference module in sector 1
+                    // not yet introduced in database
+        pMod->setRefName(ref);
+        Int_t mr=pPar->getModNumInMod(ref);
+        HGeomCompositeVolume* refMod=pPar->getRefVolume(mr);
+        if (refMod==0) {
+          refMod=new HGeomCompositeVolume(pPar->getNumComponents());
+          refMod->SetName(ref);
+          pPar->addRefVolume(refMod,mr);
+        }
+        pMod->setVolume(refMod);
+      }
+    }
+  }
+  Bool_t allFound=kTRUE;
+  for(Int_t i=0;i<TOFINO_MAXMODS;i++) {
+    if (set[i]>0 && initModules->At(i)==0) allFound=kFALSE;
+  }
+  return allFound;
+}
+
+
+Bool_t HTofinoParOraIo::readCompGeomNames(HTofinoGeomPar* pPar,Int_t* set) {
+  // reads the names of all paddles in the geometry tables
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int cell[TOFINO_MAXCELL];
+      varchar oname[TOFINO_MAXCELL][9];
+    } comps;
+    struct {
+      short cell_Ind[TOFINO_MAXCELL];
+      short oname_Ind[TOFINO_MAXCELL];
+    } comps_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readCompGeomNames(...)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT paddle_nr, geom_obj_name
+    INTO :comps INDICATOR :comps_Ind
+    FROM tofino_ana.paddle
+    WHERE det_module_id=1;         // reference module in sector 1
+  HModGeomPar* pMod=0;
+  for(Int_t s=0;s<TOFINO_MAXMODS;s++) {
+    pMod=pPar->getModule(s,0);
+    if (pMod) break;
+  }
+  if (pMod) {
+    HGeomCompositeVolume* pRefMod=pMod->getRefVolume();
+    for(Int_t k=0;k<sqlca.sqlerrd[2];k++) {
+      if (comps_Ind.oname_Ind[k]!=-1) {
+        comps.oname[k].arr[comps.oname[k].len]='\0';
+        HGeomVolume* volu=pRefMod->getComponent((comps.cell[k]-1));
+        volu->SetName((char*)(comps.oname[k].arr));
+      }
+    }
+  }
+  if (sqlca.sqlerrd[2]>0) return kTRUE;
+  else return kFALSE;
+}
+
+Bool_t HTofinoParOraIo::read(HTofinoCalPar* pPar, Int_t* set) {
+	// reads the calibration parameters and fill the TofinoCalPar container
+	Int_t contVers=pPar->getInputVersion(inputNumber);
+	Int_t versions[TOFINO_MAXMODS];
+	Int_t version=getParVersion(pPar,versions);
+	if (version==-1) {
+		pPar->setInputVersion(-1,inputNumber);
+		return kFALSE;
+  	}
+	if (contVers==version) return kTRUE;
+	if (inputNumber==1) pPar->clear();
+	pPar->setInputVersion(version,inputNumber);
+	initModules->Reset();
+	EXEC SQL BEGIN DECLARE SECTION;
+	int  sec;
+	int vers;
+	struct {
+		int paddle[TOFINO_MAXCELL];
+		float slope[TOFINO_MAXCELL];
+		float offset[TOFINO_MAXCELL];
+		float delta_slope[TOFINO_MAXCELL];
+		float delta_offset[TOFINO_MAXCELL];
+		float  cfd_threshold[TOFINO_MAXCELL];
+		float res_par1[TOFINO_MAXCELL];
+		float res_par2[TOFINO_MAXCELL];
+		float res_par3[TOFINO_MAXCELL];
+		float dist_par1[TOFINO_MAXCELL];
+		float dist_par2[TOFINO_MAXCELL];
+		float dist_par3[TOFINO_MAXCELL];
+		float dist_par4[TOFINO_MAXCELL];
+		float min_length[TOFINO_MAXCELL];
+		int dist_param_type[TOFINO_MAXCELL];
+		float time_channel[TOFINO_MAXCELL];
+		float coord_pos[TOFINO_MAXCELL];
+		//New params added in 2003
+		float adc_threshold[TOFINO_MAXCELL];
+		float adc_pedestal[TOFINO_MAXCELL];
+		float e_loss_par1[TOFINO_MAXCELL];
+		float e_loss_par2[TOFINO_MAXCELL];
+		float e_loss_par3[TOFINO_MAXCELL];
+		float e_loss_par4[TOFINO_MAXCELL];
+
+	}cal;
+	struct{
+		short paddle[TOFINO_MAXCELL];
+		short slope[TOFINO_MAXCELL];
+		short offset[TOFINO_MAXCELL];
+		short delta_slope[TOFINO_MAXCELL];
+		short delta_offset[TOFINO_MAXCELL];
+		short cfd_threshold[TOFINO_MAXCELL];
+		short res_par1[TOFINO_MAXCELL];
+		short res_par2[TOFINO_MAXCELL];
+		short res_par3[TOFINO_MAXCELL];
+		short dist_par1[TOFINO_MAXCELL];
+		short dist_par2[TOFINO_MAXCELL];
+		short dist_par3[TOFINO_MAXCELL];
+		short dist_par4[TOFINO_MAXCELL];
+		short min_length[TOFINO_MAXCELL];
+		short dist_param_type[TOFINO_MAXCELL];
+		short time_channel[TOFINO_MAXCELL];
+		short coord_pos[TOFINO_MAXCELL];
+		//New params added in 2003
+		short adc_threshold[TOFINO_MAXCELL];
+		short adc_pedestal[TOFINO_MAXCELL];
+		short e_loss_par1[TOFINO_MAXCELL];
+		short e_loss_par2[TOFINO_MAXCELL];
+		short e_loss_par3[TOFINO_MAXCELL];
+		short e_loss_par4[TOFINO_MAXCELL];
+	}cal_ind;
+	
+	EXEC SQL END DECLARE SECTION;
+	EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HTofinoCalPar*,Int_t*)");
+	EXEC SQL WHENEVER NOT FOUND CONTINUE;
+	EXEC SQL DECLARE cal_cur CURSOR FOR
+		SELECT paddle, slope, offset, delta_slope, delta_offset, cfd_threshold,
+				res_par1, res_par2, res_par3, dist_par1, dist_par2, dist_par3,
+				dist_par4, min_length, dist_param_type, time_channel, coord_pos,
+				adc_threshold, adc_pedestal, e_loss_par1, e_loss_par2, e_loss_par3,
+				e_loss_par4 	
+		FROM tofino_ana.tofino_cal_par_all
+			WHERE sector= :sec AND version =: vers; 
+	HLocation loc;
+	HTofinoCalParCell *pCell;
+	loc.setNIndex(2);
+	for(Int_t s=0;s<TOFINO_MAXMODS;s++) {
+		if(tofinoIds->At(s)>0 &&  versions[s]>0){
+			sec=s+1;
+			vers=versions[s];
+			EXEC SQL OPEN cal_cur;
+      		EXEC SQL FETCH cal_cur INTO :cal INDICATOR :cal_ind;
+			loc[0]=s;	
+			for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+				loc[1]=cal.paddle[i]-1;
+				pCell = (HTofinoCalParCell*)pPar->getSlot(loc);
+				if (pCell){
+					pCell = new (pCell) HTofinoCalParCell;
+					pCell->setSlope(cal.slope[i]);
+					pCell->setOffset(cal.offset[i]);
+					pCell->setTimeChannel(cal.time_channel[i]);
+					pCell->setDistanceParamsType(cal.dist_param_type[i]);		
+					Float_t *dist = new Float_t[4];
+					dist[0] = cal.dist_par1[i];
+					dist[1] = cal.dist_par2[i];
+					dist[2] = cal.dist_par3[i];
+					dist[3] = cal.dist_par4[i];
+					pCell->setDistanceParams(dist);
+					pCell->setCoordPosition(cal.coord_pos[i]);
+					pCell->setDeltaSlope(cal.delta_slope[i]);
+					pCell->setDeltaOffset(cal.delta_offset[i]);
+					Float_t *res = new Float_t[4];
+					res[0]=cal.res_par1[i];
+					res[1]=cal.res_par2[i];
+					res[2]=cal.res_par3[i];
+					pCell->setResolParams(res);
+					pCell->setCFDThreshold(cal.cfd_threshold[i]);
+					pCell->setMinLength(cal.min_length[i]);
+					if(cal_ind.adc_threshold[i]==-1)
+						pCell->setADCThreshold(0);	
+					else
+						pCell->setADCThreshold(cal.adc_threshold[i]);
+					if(cal_ind.adc_pedestal[i]==-1)
+						pCell->setADCPedestal(0);
+					else
+						pCell->setADCPedestal(cal.adc_pedestal[i]);
+					Float_t *eLoss = new Float_t[4];
+					if(cal_ind.e_loss_par1[i]==-1){
+						eLoss[0]=-1;
+						eLoss[1]=-1;
+						eLoss[2]=-1;
+						eLoss[3]=-1;
+					}
+					else {
+						eLoss[0]=cal.e_loss_par1[i];
+						eLoss[1]=cal.e_loss_par2[i];
+						eLoss[2]=cal.e_loss_par3[i];
+						eLoss[3]=cal.e_loss_par4[i];
+					}
+					pCell->setElossParams(eLoss);
+					initModules->AddAt(s+1,s);
+				}		
+			}
+		}	
+	}
+	EXEC SQL CLOSE cal_cur;
+	setChanged(pPar);
+	//pPar->print();
+    printInfo(pPar->GetName());
+return kTRUE;
+}
+
+
+Bool_t HTofinoParOraIo::read(HTofinoShowerMap* pPar, Int_t* set) {
+    // reads the tofino-shower map and fill the TofinoShowerMap container
+	//It is used only one map for all sectors
+    Int_t contVers=pPar->getInputVersion(inputNumber);
+    Int_t versions[TOFINO_MAXMODS];
+    Int_t version=getParVersion(pPar,versions);
+    if (version==-1) {
+        pPar->setInputVersion(-1,inputNumber);
+        return kFALSE;
+    }
+    if (contVers==version) return kTRUE;
+    if (inputNumber==1) pPar->clear();
+    pPar->setInputVersion(version,inputNumber);
+    initModules->Reset();
+    EXEC SQL BEGIN DECLARE SECTION;
+		int vers;
+		int sec;
+        int row_id[SHOWER_MAXPADS];
+        int col_id[SHOWER_MAXPADS];
+        int cell_id[SHOWER_MAXPADS];
+		short cell_ind[SHOWER_MAXPADS];
+    EXEC SQL END DECLARE SECTION;
+	HLocation loc;
+	HTofinoShowerMapCell *pCell;
+	loc.setNIndex(2);
+	EXEC SQL DECLARE cur_map CURSOR  FOR 
+			SELECT row_id, col_id, paddle_nr
+			FROM tofino_ana.tofino_shower_map_data
+            WHERE vers_id =:vers and sector_id =:sec; 
+	//For future..... This is not used now
+//	for(Int_t s=0; s<TOFINO_MAXMODS;s++){
+		sec = 1; 
+		vers = versions[1];//sector-less parameters 
+		EXEC SQL OPEN cur_map;
+		EXEC SQL FETCH cur_map INTO :row_id, :col_id, cell_id:cell_ind;
+		for(Int_t n =0;n<sqlca.sqlerrd[2];n++){
+			loc[0] = row_id[n]-1;
+			loc[1] = col_id[n]-1;
+			pCell = (HTofinoShowerMapCell*) pPar->getSlot(loc);
+			if (pCell) {
+				pCell = new(pCell) HTofinoShowerMapCell;
+				if (cell_ind[n]==-1){
+					pCell->setCellNumber(NO_TOFINO_CELL);
+				}
+				else{
+					pCell->setCellNumber(cell_id[n]-1);
+				}
+			}
+		
+		}
+//	}
+	EXEC SQL CLOSE cur_map;
+	setChanged(pPar);
+	printInfo(pPar->GetName());
+	//pPar->print();
+	return kTRUE;
+}
+
+Int_t  HTofinoParOraIo::writePar(HTofinoCalPar*pPar){
+	Int_t version=createVers(pPar);
+	if (version==-1) return -1;
+	HLocation loc;
+	HTofinoCalParCell *pCell;
+	loc.setNIndex(2);	
+	EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+			int vers[TOFINO_MAXCELL];
+			int paddle[TOFINO_MAXCELL];
+			float slope[TOFINO_MAXCELL];
+			float offset[TOFINO_MAXCELL];
+			float delta_slope[TOFINO_MAXCELL];
+			float delta_offset[TOFINO_MAXCELL];
+			float  cfd_threshold[TOFINO_MAXCELL];
+			float res_par1[TOFINO_MAXCELL];
+			float res_par2[TOFINO_MAXCELL];
+			float res_par3[TOFINO_MAXCELL];
+			float dist_par1[TOFINO_MAXCELL];
+			float dist_par2[TOFINO_MAXCELL];
+			float dist_par3[TOFINO_MAXCELL];
+			float dist_par4[TOFINO_MAXCELL];
+			float min_length[TOFINO_MAXCELL];
+			int dist_param_type[TOFINO_MAXCELL];
+			float time_channel[TOFINO_MAXCELL];
+			float coord_pos[TOFINO_MAXCELL];
+			//New params added in 2003
+			float adc_threshold[TOFINO_MAXCELL];
+			float adc_pedestal[TOFINO_MAXCELL];
+			float e_loss_par1[TOFINO_MAXCELL];
+			float e_loss_par2[TOFINO_MAXCELL];
+			float e_loss_par3[TOFINO_MAXCELL];
+			float e_loss_par4[TOFINO_MAXCELL];
+		}cal;
+	EXEC SQL END DECLARE SECTION;
+ 	for(Int_t s =0; s<pPar->getSectors();s++){
+		loc[0]=s;
+		for(Int_t c=0; c<pPar->getCells();c++){
+			loc[1]=c;
+			pCell = pPar->getObject(loc);
+			cal.vers[c]=version;
+			cal.paddle[c] = (s+1)*10 + c+1;
+			cal.slope[c] = pCell->getSlope();
+			cal.offset[c] = pCell->getOffset();
+			cal.delta_slope[c] = pCell->getDeltaSlope();
+			cal.delta_offset[c] = pCell->getDeltaOffset();
+			cal.cfd_threshold[c] =  pCell->getCFDThreshold();
+			Float_t res[3];
+			pCell->getResolParams(res);	
+			cal.res_par1[c] = res[0];
+			cal.res_par2[c] = res[1];
+			cal.res_par3[c] = res[2];
+			Float_t dist[4];
+			pCell->getDistanceParams(dist);	
+			cal.dist_par1[c] = dist[0];
+			cal.dist_par2[c] = dist[1];
+			cal.dist_par3[c] = dist[2];
+			cal.dist_par4[c] = dist[3];
+			cal.min_length[c] = pCell->getMinLength();
+			cal.dist_param_type[c] = pCell->getDistanceParamsType();
+			cal.time_channel[c] =  pCell->getTimeChannel();
+			cal.coord_pos[c] = pCell->getCoordPosition();
+			cal.adc_threshold[c]=pCell->getADCThreshold();
+			cal.adc_pedestal[c]=pCell->getADCPedestal();
+			Float_t eLoss[4];
+			pCell->getElossParams(eLoss);
+			cal.e_loss_par1[c]=eLoss[0];	
+			cal.e_loss_par2[c]=eLoss[1];	
+			cal.e_loss_par3[c]=eLoss[2];	
+			cal.e_loss_par4[c]=eLoss[3];	
+		}
+		EXEC SQL WHENEVER SQLERROR GOTO not_found;
+		EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+		EXEC SQL INSERT INTO tofino_ana.tofino_cal_par_data_v2
+		(vers_id, paddle_id,
+        slope, offset, delta_slope, delta_offset, cfd_threshold,
+        res_par1, res_par2, res_par3, dist_par1, dist_par2,
+        dist_par3, dist_par4, min_length,
+        dist_param_type, time_channel, coord_pos,adc_threshold, adc_pedestal, 
+  			e_loss_par1, e_loss_par2, e_loss_par3, e_loss_par4)
+					VALUES (:cal);
+
+
+	}
+	
+	cout<<"********    Calibration parameters written to Oracle ***********\n";
+  	cout<<"****************************************************************\n";
+  	commit();
+  	pPar->setChanged(kFALSE);
+  	return version;
+not_found:
+	showSqlError("writePar(HTofinoCalPar*)");
+	rollback();
+	pPar->setChanged(kFALSE);
+	return -1;
+
+
+}
+
+Int_t  HTofinoParOraIo::writePar(HTofinoShowerMap*pPar){
+    Int_t version=createVers(pPar);
+    if (version==-1) return -1;
+	EXEC SQL BEGIN DECLARE SECTION;
+		int vers[SHOWER_MAXPADS];
+		int row_id[SHOWER_MAXPADS];
+		int col_id[SHOWER_MAXPADS];
+		int cell_id[SHOWER_MAXPADS];		
+		int sector_id[SHOWER_MAXPADS];	
+		short cell_ind[SHOWER_MAXPADS];
+	EXEC SQL END DECLARE SECTION;
+	HLocation loc;
+	loc.setNIndex(2);
+	Int_t nId=0;
+	for(Int_t s =0; s<TOFINO_MAXMODS;s++){
+		nId=0;
+		for (Int_t r = 0; r<SHOWER_MAXROWS;r++){
+			loc[0]=r;
+			for(Int_t c = 0; c <SHOWER_MAXCOLS;c++){
+				vers[nId] = version;
+				loc[1]=c;
+				sector_id[nId]=s+1;
+				row_id[nId] = r+1;
+				col_id[nId] = c+1;
+				if(pPar->getCellNumber(loc)==NO_TOFINO_CELL){
+					cell_ind[nId]=-1;
+				}
+				else {
+					cell_ind[nId]=pPar->getCellNumber(loc);
+				}
+				cell_id[nId] = (pPar->getCellNumber(loc))+1;
+				nId++;	
+			}
+		}
+	EXEC SQL WHENEVER SQLERROR GOTO not_found;
+    EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+    EXEC SQL INSERT INTO 
+		tofino_ana.tofino_shower_map_data (vers_id,sector_id,row_id,col_id,paddle_nr)
+        VALUES (:vers, :sector_id ,:row_id,:col_id,:cell_id:cell_ind);
+	}	
+	cout<<"******* TofinoShowerMap  parameters written to Oracle **********\n";
+    cout<<"****************************************************************\n";
+    commit();
+    pPar->setChanged(kFALSE);
+    return version;
+not_found:
+    showSqlError("writePar(HTofinoShowerMap*)");
+    rollback();
+    pPar->setChanged(kFALSE);
+    return -1;
+
+
+}
+
+Int_t HTofinoParOraIo::createVers(HParSet *pPar){
+
+    cout<<"\n------------------  "<<pPar->GetName()<<"   ------------------\n";
+    cout<<"Author: "<<pPar->getAuthor()<<endl;
+    if (strlen(pPar->getAuthor())==0) {
+        Error("createVers(HParSet*)",
+          "\nAuthor of parameters not defined, please set it!");
+        return -1;
+    }
+    if (strlen(pPar->getDescription())==0) {
+        Error("createVers(HParSet*)",
+          "\ndescription of parameters not definedi, please set it!");
+        return -1;
+    }
+
+    EXEC SQL BEGIN DECLARE SECTION;
+        int   vers=-1;
+        int   context;
+        int   run;
+        const char* creator;
+        const char* descript;
+    EXEC SQL END DECLARE SECTION;
+    context = getContextId(pPar->IsA()->GetName(),pPar->getParamContext());
+    if (context==-1) return -1;
+    run=getActRunId();
+    creator  = pPar->getAuthor();
+    descript = pPar->getDescription();
+    EXEC SQL WHENEVER SQLERROR GOTO not_found;
+    EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+    const char* contName=pPar->IsA()->GetName();
+	 if (strcmp(contName,"HTofinoCalPar")==0) {
+        EXEC SQL EXECUTE
+        BEGIN
+            SELECT tofino_ana.tofino_util.next_version INTO :vers FROM DUAL;
+        INSERT INTO tofino_ana.tofino_cal_par_vers
+                   (vers_id, orig_context_id, run_id, author, description)
+            VALUES (:vers, :context, :run, :creator, :descript);
+        END;
+        END-EXEC;
+        cout<<"Oracle version for TofinoCalPar created:  "<<vers<<endl;
+    }
+	else if (strcmp(contName,"HTofinoShowerMap")==0) {
+	EXEC SQL EXECUTE
+        BEGIN
+            SELECT tofino_ana.tofino_util.next_version INTO :vers FROM DUAL;
+        INSERT INTO tofino_ana.tofino_shower_map_vers
+                   (vers_id, orig_context_id, run_id, author, description)
+            VALUES (:vers, :context, :run, :creator, :descript);
+        END;
+        END-EXEC;
+        cout<<"Oracle version for TofinoShowerMap  created:  "<<vers<<endl;
+	}
+	else {
+    Error("createVers(HParSet *pPar)","I don't know such container:%s",contName);
+    }
+
+	return vers;
+not_found:
+  showSqlError("createParVers(HParSet*)");
+  return -1;
+
+}
+
+void HTofinoParOraIo::printInfo(const char* contName) {
+  // prints the modules initialized from Oracle
+  // will later go to the log file
+  Bool_t first=kTRUE;
+  for(Int_t i=0;i<TOFINO_MAXMODS;i++) {
+    if (initModules->At(i)) {
+      if (first) {
+        cout<<contName<<": module(s) initialized from Oracle: ";
+        first=kFALSE;
+      }
+      cout<<(initModules->At(i)-1)<<" ";
+    }
+  }
+  cout<<'\n';
+}

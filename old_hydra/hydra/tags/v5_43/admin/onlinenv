@@ -1,0 +1,104 @@
+#!/usr/bin/ksh
+
+#
+# set environnement variable for online
+# version of hydra base classes
+#
+
+## --------------------------------------------------
+##  checking for right method to call the script
+## --------------------------------------------------
+
+    if [ `basename $0` = onlinenv ]
+    then
+        echo
+        echo use a leading " . " to call the `basename $0` script!
+        echo -e "exiting ...\n"
+        exit
+    fi
+
+CLIDIR=/usr/local/pub/root/gsilibs/hrevcli/v10/inc
+
+for item in `root-config --version |  sed 's/\.//g' |sed 's/\//-/g'`
+ do
+   case $item in
+    ???-??) version=$item;;
+   esac
+ done  
+
+GSIDIR_PATH=/u/dbertini/hades/revcli/hades/ 
+    
+    if [ -d ${CLIDIR} ]
+	then
+	    export CLIDIR
+	else
+	    clear
+	    ## --------------------------------------------------
+	    ##  printout
+	    ## --------------------------------------------------
+	    
+	    echo "!!! ----------------------------------------------------------."
+	    echo "!!!  ERROR while initializing HOME variable                  "
+	    echo "!!!                                                           "
+	    echo "!!!  directory: '${newhome}' is not a valid path !!!             " 
+	    echo "!!! ----------------------------------------------------------."
+    fi
+
+    if [ -d ${GSIDIR_PATH} ]
+	then
+	GSIDIR=${GSIDIR_PATH}/${version}
+	if [ -d ${GSIDIR} ]
+	    then
+		export GSIDIR
+	    else
+		clear
+		## --------------------------------------------------
+		##  printout
+		## --------------------------------------------------
+		
+		echo "!!! ----------------------------------------------------------."
+		echo "!!!  ERROR while initializing HOME variable                  "
+		echo "!!!                                                           "
+		echo "!!!  directory: '${GSIDIR}' is not a valid path !!!             " 
+		echo "!!!  or" 
+		echo "!!!  the root version ${version} is not yet supported!        " 
+		echo "!!! ----------------------------------------------------------."
+	fi
+	    export GSIDIR
+	else
+	    clear
+	    ## --------------------------------------------------
+	    ##  printout
+	    ## --------------------------------------------------
+	    
+	    echo "!!! ----------------------------------------------------------."
+	    echo "!!!  ERROR while initializing GSIDIR variable                  "
+	    echo "!!!                                                           "
+	    echo "!!!  directory: '${GSIDIR}' is not a valid path !!!             " 
+	    echo "!!! ----------------------------------------------------------."
+    fi
+
+
+if [[ ! -d  $HADDIR_BASE/evtserver ]]
+then
+ echo "evtserver branch is missing in " $HADDIR_BASE
+ echo "can not initialise online-Hydra"
+ return
+fi
+
+export ONLINEHYDRA=on
+    echo ".-------------------------------------------------------------."
+    echo "|  init online-Hydra done for root version ${version}" 
+    echo ".-------------------------------------------------------------."
+
+
+
+
+
+
+
+
+
+
+
+

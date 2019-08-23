@@ -1,0 +1,899 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Created : 31/05/2002
+//*-- Modified : 20/02/2006 by I.Koenig
+
+//_HADES_CLASS_DESCRIPTION 
+//////////////////////////////////////////////////////////////////////////////
+// HSpecParOraIo
+//
+// Interface class to database Oracle for input/output of parameters needed
+// by the Spectrometer
+// (uses the Oracle C/C++ precompiler)
+//
+//////////////////////////////////////////////////////////////////////////////
+using namespace std;
+#include "hspecparoraio.h"
+#include "hspecgeompar.h"
+#include "hgeomcompositevolume.h"
+#include "hgeomoradetversion.h"
+#include "hmagnetpar.h"
+#include "htrblookup.h"
+#include "hscspar.h"
+#include "hscschannel.h"
+#include "hades.h"
+#include "hruntimedb.h"
+#include "hrun.h"
+#include "TClass.h"
+#include <iostream>
+#include <iomanip>
+#include <unistd.h>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// SQL Communications Area
+#include <sqlca.h>
+
+ClassImp(HSpecParOraIo)
+
+#define NMAX_GEOSMALL 100
+#define NMAX_SCS      2000
+#define NMAX_TRB      1000
+#define NCHAN_TRB      128
+
+HSpecParOraIo::HSpecParOraIo(HOraConn* pC) : HDetParOraIo(pC) {
+  // constructor
+  // sets the name of the I/O class "HSpecParIo"
+  // gets the pointer to the connection class
+  fName="HSpecParIo";
+  geomCaveVers=0;
+  geomSectorVers=0;
+  geomTargetVers=0;
+  alignTargetVers=0;
+}
+
+HSpecParOraIo::~HSpecParOraIo() {
+  if (geomCaveVers) {
+    delete geomCaveVers;
+    geomCaveVers=0;
+  }
+  if (geomSectorVers) {
+    delete geomSectorVers;
+    geomSectorVers=0;
+  }
+  if (geomTargetVers) {
+    delete geomTargetVers;
+    geomTargetVers=0;
+  }
+  if (alignTargetVers) {
+    delete alignTargetVers;
+    alignTargetVers=0;
+  }
+}
+
+Bool_t HSpecParOraIo::init(HParSet* pPar,Int_t* set) {
+  // calls the special read-function for the parameter container
+  const Text_t* name=pPar->IsA()->GetName();
+  if (strcmp(name,"HSpecGeomPar")==0) return read(((HSpecGeomPar*)pPar),set);
+  if (strcmp(name,"HMagnetPar")==0) {
+    if (strcmp(pPar->getParamContext(),"MagnetCurrentSetValues")==0) {
+      return readCond((HParCond*)pPar,set);
+    } else {
+      return read(((HMagnetPar*)pPar));
+    }
+  }
+  if (pPar->InheritsFrom("HScsPar")) return read((HScsPar*)pPar);
+  if (strcmp(name,"HTrbLookup")==0) return read(((HTrbLookup*)pPar));
+  cout<<"initialization of "<<pPar->GetName()<<" not possible from Oracle!"<<endl;
+  return kFALSE;
+}
+
+Int_t HSpecParOraIo::write(HParSet* pPar) {
+  // calls the appropriate write function for the parameter container
+  const Text_t* name=pPar->IsA()->GetName();
+  if (strcmp(name,"HSpecGeomPar")==0) return writeAlignment((HSpecGeomPar*)pPar);
+  if (strcmp(name,"HMagnetPar")==0&&strcmp(pPar->getParamContext(),"MagnetCurrentSetValues")==0) {
+    return writeCond((HParCond*)pPar);
+  }
+  if (strcmp(name,"HTrbLookup")==0) return writeTrbLookup(((HTrbLookup*)pPar));
+  cout<<"No write-interface to Oracle for parameter container "
+      <<pPar->GetName()<<endl;
+  return 0;
+}
+
+
+Bool_t HSpecParOraIo::read(HSpecGeomPar* pPar, Int_t* set) {
+  // Reads the geometry of the cave, the sectors and the target(s)
+  Int_t runStart=getRunStart(pPar);
+  if (runStart<=0) return kFALSE;
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (!geomCaveVers) {
+    geomCaveVers=new HGeomOraDetVersion("CAVE");
+  }
+  if (!geomSectorVers) {
+    geomSectorVers=new HGeomOraDetVersion("SECT");
+  }
+  if (!geomTargetVers) {
+    geomTargetVers=new HGeomOraDetVersion("TARGET");
+  }
+  if (!alignTargetVers&&strcmp(getExpLocation(),"VIRTUAL")!=0) {
+    alignTargetVers=new HParOraSet(pPar->GetName());
+    Int_t contextId=getContextId("HDetGeomPar",pPar->getParamContext());
+    if (contextId==-1) return kFALSE;
+    alignTargetVers->contextId=contextId;
+  }
+  Bool_t allFound=kTRUE;
+  if (runStart<geomCaveVers->getSince()||runStart>geomCaveVers->getUntil()) {
+    TList geomObjects;
+    if (!pPar->getCave()) {
+      HGeomVolume v;
+      v.SetName("CAVE");
+      pPar->addCave(&v);
+    }
+    geomObjects.Add(new HOraGeomObj("CAVE",pPar->getCave(),'R',0));
+    Int_t v=getGeomVersion("CAVE",geomCaveVers);
+    if (v>0) allFound=readIdealGeometry(&geomObjects,geomCaveVers);
+    geomObjects.Delete();
+    pPar->setChanged();
+  }
+  if (allFound&&(runStart<geomSectorVers->getSince()||runStart>geomSectorVers->getUntil())) {
+    TList geomObjects;
+    for(Int_t i=0;i<pPar->getNumSectors();i++) {
+      TString s="SEC";
+      s+=(i+1);
+      if (!pPar->getSector(i)) {     
+        HGeomVolume v;
+        v.SetName(s.Data());
+        v.setMother("CAVE");
+        pPar->addSector(&v);
+      }
+      geomObjects.Add(new HOraGeomObj(s,pPar->getSector(i),'R',0));
+    }
+    Int_t v=getGeomVersion("SECT",geomSectorVers);
+    if (v>0) allFound=readIdealGeometry(&geomObjects,geomSectorVers);
+    geomObjects.Delete();
+    pPar->setChanged();
+  }
+  Bool_t needsGeomInit=kFALSE, needsAlignmentInit=kFALSE;
+  Int_t geomVers=geomTargetVers->getGeomVersion();
+  Int_t alignVers=-1;
+  Int_t detId=geomTargetVers->getDetectorId();
+  if (allFound&&(runStart<geomTargetVers->getSince()||runStart>geomTargetVers->getUntil())) {
+    needsGeomInit=kTRUE;
+    if (detId<0) {
+      geomVers=getGeomVersion("TARGET",geomTargetVers);
+    } else {
+      geomVers=getGeomVersion(detId,geomTargetVers);
+    }
+  }
+  if (geomVers<=0) {
+    allFound=kFALSE;
+  }
+  if (allFound&&alignTargetVers) {
+    Double_t oldUntil=alignTargetVers->versDate[1];    
+    if (contVers<=0 || needsGeomInit || runStart<alignTargetVers->versDate[0]
+                    || runStart>oldUntil) {
+      alignVers=getAlignmentVersion(alignTargetVers,"TARGET");
+      if (alignVers>0) needsAlignmentInit=kTRUE;
+      else if (oldUntil!=-1) needsGeomInit=kTRUE;
+    }
+  }
+  if (allFound&&(needsGeomInit||needsAlignmentInit)) {
+    TList geomObjects;
+    pPar->clear();
+    allFound=readTargetVolumes(pPar,geomObjects);
+    if (allFound) {
+      cout<<pPar->GetName()<<": Target geometry read from Oracle (version "<<geomVers<<")\n";
+      if (needsAlignmentInit) {
+        allFound=readAlignmentTransform(&geomObjects,alignVers);
+        if (allFound) {
+          cout<<pPar->GetName()<<": Target alignment read from Oracle(version "<<alignVers<<")\n";
+        }
+      }
+    }
+    geomObjects.Delete();
+    pPar->setChanged();
+  }
+  if (allFound) {
+    if (pPar->hasChanged()) {
+      pPar->setInputVersion(getActRunId(),inputNumber);
+      pPar->setNotFirstInit();
+    }
+  } else {
+    pPar->clear();
+    pPar->setChanged(kFALSE);
+  }
+  return allFound;
+}
+
+
+Bool_t HSpecParOraIo::readTargetVolumes(HSpecGeomPar* pPar, TList& geomObjects) {
+  // Reads the target volumes
+  EXEC SQL BEGIN DECLARE SECTION;
+    int     vers;
+    int     detid;
+    struct {
+      int     p_id[NMAX_GEOSMALL];
+      varchar p_name[NMAX_GEOSMALL][11];
+      varchar p_shape[NMAX_GEOSMALL][5];
+      int     p_vol_id[NMAX_GEOSMALL];
+      int     p_trans_id[NMAX_GEOSMALL];
+    } vol;
+    struct {
+      short p_id_Ind[NMAX_GEOSMALL];
+      short p_name_Ind[NMAX_GEOSMALL];
+      short p_shape_Ind[NMAX_GEOSMALL];
+      short p_vol_id_Ind[NMAX_GEOSMALL];
+      short p_trans_id_Ind[NMAX_GEOSMALL];
+    } vol_Ind;
+  EXEC SQL END DECLARE SECTION;
+  vers=(Int_t)geomTargetVers->getGeomVersion();
+  detid=(Int_t)geomTargetVers->getDetectorId();
+  Int_t numTargets=0, i;
+  Bool_t allFound=kFALSE;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT object_id, object_name, geant3_shape, volume_id, trans_id
+           INTO :vol INDICATOR :vol_Ind
+           FROM hgeom.volume_data_at_histdate
+           WHERE det_part_id = :detid
+             AND :vers BETWEEN geom_vers_min AND geom_vers_max
+             AND ( object_name LIKE 'TARG%' OR object_name LIKE 'TX%' );
+  numTargets=sqlca.sqlerrd[2];
+  if (numTargets>0) {
+    pPar->createTargets(numTargets);
+    for(i=0;i<numTargets;i++) {
+      if (vol_Ind.p_name_Ind[i]!=-1) {
+        HGeomVolume v;
+        vol.p_name[i].arr[vol.p_name[i].len]='\0';
+        Char_t* nName=(Char_t*)(vol.p_name[i].arr);
+        v.SetName(nName);
+        if (vol_Ind.p_shape_Ind[i]!=-1) {
+          vol.p_shape[i].arr[vol.p_shape[i].len]='\0';
+          v.setShape((Char_t*)(vol.p_shape[i].arr));
+        }
+        v.setMother("CAVE");
+        pPar->addTarget(&v);
+        Int_t nt=pPar->getTargetIndex(nName);
+        HOraGeomObj* obj=new HOraGeomObj(nName,pPar->getTarget(nt),'T',0);
+        obj->objId=vol.p_id[i];
+        obj->volId=vol.p_vol_id[i];
+        if (vol_Ind.p_trans_id_Ind[i]!=-1) obj->transId=vol.p_trans_id[i];
+        geomObjects.Add(obj);
+      }
+    }
+    allFound=readGeomPoints(&geomObjects);
+    if (allFound) allFound=readGeomTransform(&geomObjects);
+  }    
+  return allFound;
+errorfound:
+  showSqlError("readTargetVolumes");  
+  return kFALSE;
+}
+
+
+Bool_t HSpecParOraIo::read(HMagnetPar* pPar) {
+  // Reads the magnet current
+  Int_t runStart=getRunStart(pPar);
+  if (runStart<=0) return kFALSE;
+  Int_t actualCurrent=pPar->getCurrent();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int curr;
+    short curr_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  if (strcmp(getExpLocation(),"VIRTUAL")==0) {
+    EXEC SQL SELECT ROUND(field_factor*3465,0) INTO :curr:curr_Ind
+             FROM hanal.simul_project
+             WHERE hades_oper.run_query.get_date BETWEEN project_begin and project_end;  
+  } else {
+    EXEC SQL SELECT mean_current INTO :curr:curr_Ind
+             FROM cryo.runs_magnet_current
+             WHERE run_id = hades_oper.run_query.get_run_id;
+  }
+  if (curr_Ind!=-1) {
+    if (curr>=-4&&curr<=4) curr=0;
+    if (curr!=actualCurrent||
+           (pPar->getInputVersion(1)==-1&&pPar->getInputVersion(2)==-1)) {
+      pPar->setCurrent(curr);
+      pPar->setChanged();
+      pPar->setInputVersion(getActRunId(),inputNumber);
+    }
+    return kTRUE;
+  }
+  return kFALSE; 
+errorfound:
+  showSqlError("read(HMagnetPar*)");  
+notfound:
+  pPar->setInputVersion(-1,inputNumber);
+  return kFALSE;
+}
+
+Int_t HSpecParOraIo::getVersion(HParSet* pPar) {
+  // reads the version for the parameters valid for the current event file
+  // returns -1, if no data are found
+  Int_t runStart=getRunStart(pPar);
+  if (runStart<=0) return -1;
+  HParOraSet* oraSet=getOraSet(pPar);
+  if (oraSet->contextId==-1) return -1;
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (contVers!=-1 && runStart>=oraSet->versDate[0]
+      && runStart<=oraSet->versDate[1]) return contVers;
+  oraSet->clearVersDate();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int context;
+    struct {
+      int vers;
+      double since;
+      double until;
+    } parvers;
+  EXEC SQL END DECLARE SECTION;
+  context=oraSet->contextId;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  const Char_t* containerClass=pPar->IsA()->GetName();
+  if (strcmp(containerClass,"HTrbLookup")==0) {
+    EXEC SQL SELECT version,
+                    hdate.to_ansitime(valid_since),
+                    hdate.to_ansitime(valid_until)
+             INTO :parvers
+             FROM hanal.trb_lookup_vers_at_date
+             WHERE context_id = :context;
+  }
+  oraSet->versDate[0]=parvers.since;
+  oraSet->versDate[1]=parvers.until;
+  return parvers.vers;
+notfound:
+  return -1;
+errorfound:
+  showSqlError("getVersion(HParSet*)");
+  return -1;
+};
+
+
+Bool_t HSpecParOraIo::read(HTrbLookup* pPar) {
+  // reads the TRB lookup table
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  Int_t version=getVersion(pPar);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (contVers==version) return kTRUE;
+  pPar->clear();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+    struct {
+      int  subevtid[NMAX_TRB];
+      int  chan[NMAX_TRB];
+      char det[NMAX_TRB][2];
+      int  sector[NMAX_TRB];
+      int  module[NMAX_TRB];
+      int  cell[NMAX_TRB];
+      char side[NMAX_TRB][2];
+      int  feaddress[NMAX_TRB];
+    } lrecL;
+    struct {
+      short subevtid_Ind[NMAX_TRB];
+      short chan_Ind[NMAX_TRB];
+      short det_Ind[NMAX_TRB];
+      short sector_Ind[NMAX_TRB];
+      short module_Ind[NMAX_TRB];
+      short cell_Ind[NMAX_TRB];
+      short side_Ind[NMAX_TRB];
+      short feaddress_Ind[NMAX_TRB];
+    } lrecL_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR goto errorfound;
+  EXEC SQL WHENEVER NOT FOUND continue;
+  vers=version;
+  Int_t nTot=0;
+  Int_t nLast=0;
+  EXEC SQL DECLARE lookup_cursor CURSOR FOR
+           SELECT subevent_id, channel, detector, sector, module,
+                  cell, side, fe_address
+           FROM hanal.hwpg_trb_lookup_data
+           WHERE vers_id = :vers;
+  EXEC SQL OPEN lookup_cursor;
+  do {
+    EXEC SQL FETCH lookup_cursor INTO :lrecL INDICATOR :lrecL_Ind;
+    nLast=sqlca.sqlerrd[2]-nTot;
+    if (nLast>0) {
+      for (Int_t i=0;i<nLast;i++) {
+        Char_t s='\0';
+        if (lrecL_Ind.side_Ind[i]!=-1) s=lrecL.side[i][0];
+        pPar->fill(lrecL.subevtid[i],lrecL.chan[i],lrecL.det[i][0],
+                   lrecL.sector[i],lrecL.module[i],lrecL.cell[i],
+                   s,lrecL.feaddress[i]);
+        nTot++;
+      }
+    }
+  } while (nLast==NMAX_TRB&&nTot<=10000);
+  EXEC SQL CLOSE lookup_cursor;
+  if (nTot>0) {
+    pPar->setInputVersion(version,inputNumber);
+    setChanged(pPar);
+    cout<<pPar->GetName()<<" initialized from Oracle: ";
+    return kTRUE;
+  } else {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }  
+errorfound:
+  showSqlError("read(HTrbLookup*)");
+  pPar->setInputVersion(-1,inputNumber);
+  return kFALSE;
+}
+
+
+Bool_t HSpecParOraIo::read(HScsPar* pPar) {
+  // Reads the data for a Slow Control parameter container
+  Int_t runid=gHades->getRuntimeDb()->getCurrentRun()->getRunId();
+  if (runid<=0) return kFALSE;
+  pPar->clear();
+  TString periodBegin, periodEnd;
+  Int_t utcdiff=0;
+  Int_t period=readScsPeriod(runid,periodBegin,periodEnd,utcdiff); 
+  if (period<0) return kFALSE;
+cout<<period<<"  "<<periodBegin<<"  "<<periodEnd<<"  "<<utcdiff<<endl;
+  Bool_t rc=readScsSummary(pPar,period,periodBegin.Data(),periodEnd.Data(),utcdiff);
+  if (rc) {
+    pPar->setChanged();
+    pPar->setInputVersion(runid,inputNumber);
+  } else {
+    pPar->setInputVersion(-1,inputNumber);
+  }
+  return rc;
+}
+
+
+Int_t HSpecParOraIo::readScsPeriod(Int_t runid,TString& tstart,TString& tend, Int_t& utcdiff) {
+  // Reads the Slow Control summary period for the actual run
+  EXEC SQL BEGIN DECLARE SECTION;
+    int  rid;
+    int  pid;
+    char ts[20];
+    char te[20];
+    int  dt;
+  EXEC SQL END DECLARE SECTION;
+  rid=runid;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT period_id,
+                  TO_CHAR(period_begin,'yyyy-mm-dd hh24:mi:ss'),
+                  TO_CHAR(period_end,'yyyy-mm-dd hh24:mi:ss'),
+                  hdate.gmt_diff(period_begin)
+           INTO :pid, :ts, :te, :dt
+           FROM hades_slow.hscs_periods
+           WHERE run_id = :rid;
+  if (pid>0) {
+    ts[19]='\0';
+    te[19]='\0';
+    tstart=ts;
+    tend=te;
+    utcdiff=dt; 
+  }
+  return pid;
+notfound:
+  Error("readScsPeriod","Period for run id %i not found",rid);
+  return kFALSE;
+errorfound:
+  showSqlError("readScsPeriod");
+  return kFALSE;
+}
+
+
+Bool_t HSpecParOraIo::readScsSummary(HScsPar* pPar,Int_t period,
+                                     const Char_t* tStart,const Char_t* tEnd,Int_t utcdiff) {
+  // Reads the Slow Control summary information for all channels in the parameter container
+  // Invokes the read of the raw data
+  TObjArray* pChannels=pPar->getChannels();
+  if (!pChannels) return kTRUE;    
+  EXEC SQL BEGIN DECLARE SECTION;
+    int    pid;
+    char*  chname;
+    struct {
+      int     chid;
+      varchar chtype[3];
+      int     vprec;
+      double  vmean;
+      double  vsigma;
+      double  vmin;
+      double  vmax;
+      double  vprev;
+      int     ndata;
+      char    dstart[20];
+      char    dend[20];
+      int     vstat;
+    } chsum;
+    struct {
+      short  chid_Ind;
+      short  chtype_Ind;
+      short  vprec_Ind;
+      short  vmean_Ind;
+      short  vsigma_Ind;
+      short  vmin_Ind;
+      short  vmax_Ind;
+      short  vprev_Ind;
+      short  ndata_Ind;
+      short  dstart_Ind;
+      short  dend_Ind;
+      short  vstat_Ind;
+    } chsum_Ind;
+  EXEC SQL END DECLARE SECTION;
+  pid=period;  
+  HScsChannel* pChan=0;
+  Bool_t rc=kTRUE;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  for (Int_t i=0;i<pChannels->GetSize();i++) {
+    pChan=(HScsChannel*)(pChannels->At(i));
+    if (pChan) {
+      chname=(Char_t*)(pChan->GetName()); 
+      EXEC SQL SELECT channel_id, channel_type, precision,
+                      mean, sigma, min_value, max_value, prev_value, n_data,
+                      TO_CHAR(data_begin,'yyyy-mm-dd hh24:mi:ss'),
+                      TO_CHAR(data_end,'yyyy-mm-dd hh24:mi:ss'), stat
+               INTO :chsum INDICATOR :chsum_Ind
+               FROM hades_slow.hscs_chan_run_sum_ana
+               WHERE period_id = :pid
+                 AND channel_name = :chname;
+      chsum.chtype.arr[chsum.chtype.len]='\0'; 
+      pChan->setChannelType((Char_t*)(chsum.chtype.arr)); 
+      if (chsum_Ind.vprec_Ind!=-1) pChan->setValuePrecision(chsum.vprec);
+      if (chsum_Ind.vmean_Ind!=-1) {
+        pChan->setMean(chsum.vmean);
+        pChan->setSigma(chsum.vsigma);
+        pChan->setMinValue(chsum.vmin);
+        pChan->setMaxValue(chsum.vmax);
+      }
+      if (chsum_Ind.vprev_Ind!=-1) pChan->setPreviousVal(chsum.vprev);
+      if (chsum_Ind.ndata_Ind!=-1&&chsum.ndata>0) {
+        chsum.dstart[19]='\0';
+        chsum.dend[19]='\0';
+        if (chsum.chtype.arr[0]=='F') {
+          rc=readScsRawF(pChan,chsum.chid,chsum.ndata,chsum.dstart,chsum.dend,utcdiff);
+        } else if (chsum.chtype.arr[0]=='I') {
+          rc=readScsRawI(pChan,chsum.chid,chsum.ndata,chsum.dstart,chsum.dend,utcdiff);
+        } else {
+          Error("readScsSummary","No interface for channel type %s",pChan->getChannelType());
+          rc=kFALSE;
+        }
+      }
+      if (chsum_Ind.vstat_Ind!=-1) pChan->setStatus(chsum.vstat);
+    }
+    if (!rc) break;
+  }
+  return rc;
+notfound:
+  Error("readScsSummary","Channel not found");
+  return kFALSE;
+errorfound:
+  showSqlError("readScsSummary");
+  return kFALSE;
+}
+
+
+Bool_t HSpecParOraIo::readScsRawF(HScsChannel* pChan,Int_t channelId,Int_t nData,
+                                 Char_t* dataStart,Char_t * dataEnd,Int_t utcdiff) {
+  // Reads the Slow Control raw data for a channel of type float or double 
+  if (channelId<=0) return kFALSE;
+  TObjArray* data=new TObjArray(nData);
+  EXEC SQL BEGIN DECLARE SECTION;
+    int chid;
+    char* tstart;
+    char* tend;
+    int   dutc;
+    struct {
+      char   ti[NMAX_SCS][20];
+      double va[NMAX_SCS];
+    } rawdata;
+  EXEC SQL END DECLARE SECTION;
+  chid=channelId;
+  tstart=(Char_t*)dataStart;
+  tend=(Char_t*)dataEnd;
+  dutc=utcdiff;
+  Int_t nTot=0;
+  Int_t nLast=0;
+  TString lastTimestamp;
+  UInt_t fDate=0, fTime=0;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND continue;
+  EXEC SQL DECLARE rawf_cursor CURSOR FOR
+           SELECT TO_CHAR(timestamp - :dutc/24,'yyyy-mm-dd hh24:mi:ss'), value
+           FROM hades_slow.archive_data_f
+           WHERE timestamp BETWEEN TO_DATE(:tstart,'yyyy-mm-dd hh24:mi:ss')
+                               AND TO_DATE(:tend,'yyyy-mm-dd hh24:mi:ss')
+           AND pv_id = :chid
+           AND value IS NOT NULL
+           ORDER BY timestamp;
+  EXEC SQL OPEN rawf_cursor;
+  do {  
+    EXEC SQL FETCH rawf_cursor INTO :rawdata;
+    nLast=sqlca.sqlerrd[2]-nTot;
+    if (nLast>0) {
+      for (Int_t i=0;i<nLast;i++) {
+        HScsChannelRaw* p=new HScsChannelRaw();
+        rawdata.ti[i][19]='\0';
+        stringToDate(rawdata.ti[i],fDate,fTime);
+        p->setDate(fDate);
+        p->setTime(fTime);
+        p->setValue(rawdata.va[i]);
+        data->AddAt(p,nTot);
+        nTot++;
+      }
+      lastTimestamp=rawdata.ti[nLast-1];
+    } 
+  } while (nLast==NMAX_SCS&&nTot<nData);
+  EXEC SQL CLOSE rawf_cursor;
+  pChan->setRawData(data);
+  return kTRUE;
+errorfound:
+  showSqlError("readScsRawF");
+  return kFALSE;
+}
+
+
+Bool_t HSpecParOraIo::readScsRawI(HScsChannel* pChan,Int_t channelId,Int_t nData,
+                                 Char_t* dataStart,Char_t * dataEnd,Int_t utcdiff) {
+  // Reads the Slow Control raw data for a channel of type int or long 
+  if (channelId<=0) return kFALSE;
+  TObjArray* data=new TObjArray(nData);
+  EXEC SQL BEGIN DECLARE SECTION;
+    int chid;
+    char* tstart;
+    char* tend;
+    int   dutc;
+    struct {
+      char   ti[NMAX_SCS][20];
+      double va[NMAX_SCS];
+    } rawdata;
+  EXEC SQL END DECLARE SECTION;
+  chid=channelId;
+  tstart=(Char_t*)dataStart;
+  tend=(Char_t*)dataEnd;
+  dutc=utcdiff;
+  Int_t nTot=0;
+  Int_t nLast=0;
+  TString lastTimestamp;
+  UInt_t fDate=0, fTime=0;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND continue;
+  EXEC SQL DECLARE rawi_cursor CURSOR FOR
+           SELECT TO_CHAR(timestamp - :dutc/24,'yyyy-mm-dd hh24:mi:ss'), value
+           FROM hades_slow.archive_data_i
+           WHERE timestamp BETWEEN TO_DATE(:tstart,'yyyy-mm-dd hh24:mi:ss')
+                               AND TO_DATE(:tend,'yyyy-mm-dd hh24:mi:ss')
+           AND pv_id = :chid
+           AND value IS NOT NULL
+           ORDER BY timestamp;
+  EXEC SQL OPEN rawi_cursor;
+  do {  
+    EXEC SQL FETCH rawi_cursor INTO :rawdata;
+    nLast=sqlca.sqlerrd[2]-nTot;
+    if (nLast>0) {
+      for (Int_t i=0;i<nLast;i++) {
+        HScsChannelRaw* p=new HScsChannelRaw();
+        rawdata.ti[i][19]='\0';
+        stringToDate(rawdata.ti[i],fDate,fTime);
+        p->setDate(fDate);
+        p->setTime(fTime);
+        p->setValue(rawdata.va[i]);
+        data->AddAt(p,nTot);
+        nTot++;
+      }
+      lastTimestamp=rawdata.ti[nLast-1];
+    } 
+  } while (nLast==NMAX_SCS&&nTot<nData);
+  EXEC SQL CLOSE rawi_cursor;
+  pChan->setRawData(data);
+  return kTRUE;
+errorfound:
+  showSqlError("readScsRawI");
+  return kFALSE;
+}
+
+
+void HSpecParOraIo::stringToDate(const Char_t* timestamp,UInt_t& fDate,UInt_t& fTime) {
+  // Converts the timestamp into two UInt_t variables date and time
+  Int_t tsec, tmin, thour, tday, tmon, tyear;
+  tyear=(timestamp[0]-'0')*1000 + (timestamp[1]-'0')*100 + (timestamp[2]-'0')*10
+        + (timestamp[3]-'0') - 1900;
+  tmon=(timestamp[5]-'0')*10 + (timestamp[6]-'0') -1;
+  tday=(timestamp[8]-'0')*10 + (timestamp[9]-'0');
+  thour=(timestamp[11]-'0')*10 + (timestamp[12]-'0');
+  tmin=(timestamp[14]-'0')*10 + (timestamp[15]-'0');
+  tsec=(timestamp[17]-'0')*10 + (timestamp[18]-'0');
+  fDate=(tday & 0xFF)+((tmon & 0xFF)<<8)+((tyear & 0xFF)<<16);
+  fTime=((thour & 0xFF)<<16)+((tmin & 0xFF)<<8)+(tsec & 0xFF);
+}
+
+
+Int_t HSpecParOraIo::writeAlignment(HSpecGeomPar* pPar) {
+  // Writes the target alignment
+  Int_t runStart=getRunStart(pPar);
+  if (runStart==-1) return -1;
+  Int_t version=getAlignmentOutputVersion(pPar,pPar->getParamContext());
+  if (version==-1) return -1;
+  Int_t n=0;
+  Bool_t rc=kTRUE;
+  for(Int_t i=0;i<pPar->getNumTargets();i++) {
+    HGeomVolume* pVol=pPar->getTarget(i);
+    if (!pVol) continue;
+    if ((rc=writeTransform(version,pVol->GetName(),pVol->getTransform()))) n++;
+    else break;
+  }
+  if (rc && n>0) {
+    cout<<"Target alignment:  "<<n<<" rows inserted\n";
+    commit();
+  }
+  pPar->setChanged(kFALSE);
+  return version;
+}
+
+
+Int_t HSpecParOraIo::createVers(HParSet* pPar) {
+  // creates a new version for the parameters
+  // returns the new version
+  cout<<"---------------  "<<pPar->GetName()<<"   ---------------\n";
+  if (strlen(pPar->getAuthor())==0) {
+    Error("createVers(HParSet*)",
+          "author of parameters not defined");
+    return -1;
+  }
+  if (strlen(pPar->getDescription())==0) {
+    Error("createVers(HParSet*)",
+          "descriction of parameters not defined");
+    return -1;
+  }
+  Int_t runStart=getRunStart(pPar);
+  if (runStart==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* p_class;
+    int   vers=-1;
+    int   context;
+    int   run;
+    char* creator;
+    char* descript;
+  EXEC SQL END DECLARE SECTION;
+  p_class=(Char_t*)(pPar->IsA()->GetName());
+  context = getContextId(pPar->IsA()->GetName(),pPar->getParamContext());
+  if (context==-1) return -1;
+  run=getActRunId();
+  creator=(Char_t*)pPar->getAuthor();
+  descript=(Char_t*)pPar->getDescription();
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO errorfound;
+  const Char_t* contName=pPar->IsA()->GetName();
+  if (strcmp(contName,"HTrbLookup")==0) {
+    EXEC SQL EXECUTE
+      BEGIN
+        SELECT hanal.ana_par_query.next_version(:p_class) INTO :vers FROM DUAL;
+        INSERT INTO hanal.trb_lookup_vers
+                   (vers_id, orig_context_id, run_id, author, description)
+            VALUES (:vers, :context, :run, :creator, :descript);
+      END;
+    END-EXEC;
+  }
+  cout<<"Oracle version for "<<pPar->GetName()<<" created:  "<<vers<<endl;
+  return vers;
+errorfound:
+  showSqlError("createVers(HParSet*)");
+  return vers;
+}
+
+
+Int_t HSpecParOraIo::writeTrbLookup(HTrbLookup* pPar) {
+  // creates a new version and writes the lookup table to Oracle
+  Int_t version=createVers(pPar);
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int  rows_to_insert;
+    int  vers[NCHAN_TRB];
+    int  subevtid[NCHAN_TRB];
+    int  chan[NCHAN_TRB];
+    char det[NCHAN_TRB][2];
+    int  sector[NCHAN_TRB];
+    int  module[NCHAN_TRB];
+    int  cell[NCHAN_TRB];
+    char side[NCHAN_TRB][2];
+    short side_Ind[NCHAN_TRB];
+    int  feaddress[NCHAN_TRB];
+  EXEC SQL END DECLARE SECTION;
+  Int_t nChan=0;
+  Int_t arrayOffset=pPar->getArrayOffset();
+  for(Int_t b=0;b<pPar->getSize();b++) {
+    HTrbLookupBoard* board=(*pPar)[b];
+    if (board) {
+      nChan=0;
+      for(Int_t t=0;t<board->getSize();t++) {
+        HTrbLookupChan& rChan=(*board)[t];
+        Char_t d=rChan.getDetector();
+        if (d!='\0') {
+          vers[nChan]=version;
+          subevtid[nChan]=arrayOffset+b;
+          chan[nChan]=t;
+          det[nChan][0]=d;
+          det[nChan][1]='\0';
+          sector[nChan]=rChan.getSector();
+          module[nChan]=rChan.getModule();
+          cell[nChan]=rChan.getCell();
+          side[nChan][0]=rChan.getSide();
+          if (side[nChan][0]!='\0') { 
+            side[nChan][1]='\0';
+            side_Ind[nChan]=0;
+          } else side_Ind[nChan]=-1;
+          feaddress[nChan]=rChan.getFeAddress(); 
+          nChan++;
+        }
+      }
+      rows_to_insert=nChan;
+      EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+      EXEC SQL WHENEVER NOT FOUND GOTO errorfound;
+      EXEC SQL FOR :rows_to_insert
+      INSERT INTO hanal.trb_lookup_data
+                  (vers_id, subevent_id, channel_id, cell_id, fe_address )
+             VALUES (:vers, :subevtid, :chan,
+                     hanal.ana_par_query.get_trb_detector_cell(
+                       :det,:sector,:module,:cell,:side:side_Ind),
+                     :feaddress);
+      cout<<"SubeventId "<<arrayOffset+b<<":  "<<rows_to_insert<<" rows inserted\n";
+    }
+  }
+  if (checkFrontEndAddresses(version)) {
+    commit();
+    pPar->setChanged(kFALSE);
+    return version;
+  } else {
+    rollback();
+    return -1;
+  }
+errorfound:
+  showSqlError("writePar(HTrbLookup*)");
+  rollback();
+  pPar->setChanged(kFALSE);
+  return -1;
+}
+
+Bool_t HSpecParOraIo::checkFrontEndAddresses(Int_t version) {
+  // checks if the front end address in the TRB lookup table is unique in each sector
+  // returns kFALSE in case of an error
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+    struct {
+      char det[NMAX_TRB][2];
+      int  sector[NMAX_TRB];
+      int  feaddress[NMAX_TRB];
+      int  ndata[NMAX_TRB];
+    } lrecLC;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR goto errorfound;
+  EXEC SQL WHENEVER NOT FOUND continue;
+  vers=version;
+  EXEC SQL SELECT detector, sector, fe_address, ncount
+           INTO :lrecLC
+           FROM ( SELECT detector, sector, fe_address, count(1) as ncount
+                  FROM hanal.hwpg_trb_lookup_data
+                  WHERE  vers_id = :vers AND fe_address != -1
+                  GROUP by detector, sector, fe_address )
+           WHERE ncount > 1;
+  if (sqlca.sqlerrd[2]>0) {
+    cout<<"------------------------------------------------------------------------\n";
+    cout<<"ERROR: Multiple defined front end addresses\n"
+          "Detector  Sector  FE-Address  Number of Definitions\n";
+    for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+      cout<<"   "<<lrecLC.det[i][0]<<"         "<<lrecLC.sector[i]<<"     "
+          <<lrecLC.feaddress[i]<<" \t "<<lrecLC.ndata[i]<<'\n';
+    }
+    cout<<"------------------------------------------------------------------------\n";
+    return kFALSE;
+  }
+  return kTRUE;
+errorfound:
+  showSqlError("checkFrontEndAddresses(Int_t version");
+  return kFALSE;
+}
+

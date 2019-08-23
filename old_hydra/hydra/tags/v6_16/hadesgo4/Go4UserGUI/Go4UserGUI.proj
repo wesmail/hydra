@@ -1,0 +1,80 @@
+struct (
+	"BuildDir" : "Go4UserGUI",
+	"BuildSupport" : false,
+	"BuildSupportPlatforms" : "All",
+	"CreateLinks" : true,
+	"DisplayName" : "Go4UserGUI",
+	"FileCount" : 5,
+	"FileSet" : array (
+		struct (
+			"FileName" : "Go4UserGUI/Go4UserGUI.proj",
+			"FileType" : "Project"
+		),
+		struct (
+			"FileName" : "Go4UserGUI/Go4UserGui.pro",
+			"FileType" : "QtTypes"
+		),
+		struct (
+			"FileName" : "Go4UserGUI/TGo4MainUserPanel.ui",
+			"FileType" : "QtTypes"
+		),
+		struct (
+			"FileName" : "Go4UserGUI/TGo4MainUserPanel.ui.h",
+			"FileType" : "Header"
+		),
+		struct (
+			"FileName" : "Go4UserGUI/TGo4UserWidget1.ui",
+			"FileType" : "QtTypes"
+		)
+	),
+	"FileTypes" : struct (
+		"Header" : struct (
+			"BuildTool" : "",
+			"Language" : "ANSI C/C++",
+			"Signatures" : "*.h:*.H:*.hh:*.HH:*.hpp:*.HPP:*.hxx:*.HXX:*.ci",
+			"SubType" : "Interface",
+			"Type" : "Interface"
+		),
+		"Project" : struct (
+			"BuildTool" : "",
+			"Language" : "",
+			"Signatures" : "*.prj:*.proj:*.shared",
+			"SubType" : "Project",
+			"Type" : "Project"
+		),
+		"QtTypes" : struct (
+			"BuildTool" : "",
+			"DerivedFrom" : array (
+			),
+			"DerivedFromInfo" : struct (
+				"DerivedLoose" : 0,
+				"DerivedType" : 0,
+				"GenerateDir" : "",
+				"ViewSpecific" : 0
+			),
+			"Language" : "",
+			"Signatures" : "*.ui:*.pro:*.db",
+			"SubType" : "",
+			"Type" : "Implementation"
+		)
+	),
+	"FileTypesOrder" : array (
+		"Project",
+		"Header",
+		"QtTypes"
+	),
+	"GenerateDir" : "Go4UserGUI/.sniffdir",
+	"Release" : "V4.0",
+	"SubProj" : array (
+	),
+	"Targets" : struct (
+		"Objects" : struct (
+			"BuildTool" : "None",
+			"PassedToSuperproject" : true
+		),
+		"Received" : struct (
+			"BuildTool" : "None",
+			"PassedToSuperproject" : true
+		)
+	)
+)

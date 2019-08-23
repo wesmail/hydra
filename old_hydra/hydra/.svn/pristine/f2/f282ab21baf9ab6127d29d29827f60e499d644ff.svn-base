@@ -1,0 +1,14 @@
+CXX		= g++
+CXXFLAGS	= -w -D__osf__ -D__alpha -fPIC -DDEBUG_LEVEL=$(HDL) -I$(ROOTSYS)/include -I$(HADDIR)/base 
+CINTINC		= -I$(HADDIR)/base
+LD		= g++
+LDFLAGS		= -g
+ROOTLIBS	= -L$(ROOTSYS)/lib -lNew -lBase -lCint -lClib -lCont -lFunc -lGraf \
+                  -lGraf3d -lHist -lHtml -lMatrix -lMeta -lMinuit -lNet -lPostscript \
+                  -lProof -lTree -lUnix -lZip 
+ROOTGLIBS   	= -lGpad -lGui -lGX11 -lX3d
+RINT		= $(ROOTSYS)/src/RINT_G__Rint.o $(ROOTSYS)/src/RINT_Rint.o
+LIBS		= $(ROOTLIBS) -lg++ -lm 
+GLIBS		= $(LIBS) $(ROOTGLIBS) -L/usr/X11R6/lib -lm -lXpm -lX11
+SOEXT		= so
+SOFLAGS		= -shared -Wl,-expect_unresolved,* -Wl,-soname,

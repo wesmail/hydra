@@ -1,0 +1,84 @@
+0. 
+   Verify your background model (is it reasonably flat??)
+   root -l <inputfile.root>
+   .L tricks.C
+   background(<range>,lowerp,upperp) - try several momentum intervals choose the 
+   fit-range as large as possible and make sure that the bg is actually reasonably flat
+
+1. 
+   Determine the width of the broad component in the signal from simulation.
+   For this you need to fit the signal in increasingly large fit-ranges to
+   see the monotonous rise in the background-width result. 
+
+   Use the macro tricks.C:
+   root -l <inputfile.root>
+   .L tricks.C
+   loop();
+
+   move the output to a directory of your choice
+   Have a look at the output files named "LargeWidthVsRange_<xxx>_to_<yyy>.txt".
+   These should show a monotonous rise of the wide component of the correlation
+   with fit range and almost no dependence on momentum. The fit is done sector 
+   independent to allow for better statistics
+
+ 2.
+   Pick the mean value for the wide range and fix this parameter for the macro
+   tricks.C when fitting the next time. This time you fit the signal width assuming a
+   fixed background width - again this is not done sector-wise
+   
+   root -l <inputfile.root>
+   .L tricks.C
+   loop(<fixed width>);
+
+   move the result to a directory of your choice
+   Verify that the result of the fit for the narrow component of the distribution
+   is not affected by the fit range anymore after the width of the broad component
+   is fixed! The result can be found in:"SmallWidthVsRange_<xxx>_to_<yyy>.txt".
+   Of course the result will become more narrow with increasing momentum!
+
+
+2.b
+   Check whether the free (non-constrained) result for the large width
+   determined from the correlated background agrees reasonably with the one 
+   from the wide signal component
+
+   root -l <inputfile.root>
+   .L tricks.C
+   loop(0.0,2)
+
+
+2c.
+   Look at the small component  of the correlated background. Find out what 
+   the variation with fit range is after fixing the broad component. Check
+   that the narrow components of signal and correlated background are 
+   comparable
+
+   root -l <inputfile.root>
+   .L tricks.C
+   loop(<fixedwidth>,2)
+
+
+ 3. 
+   Fit signal+background together 
+   
+   root -l <inputfile.root>
+   .L tricks.C
+   loop(<fixedwidth>,1)
+
+   move the result to a directory of your choice
+   Verify that the signal widths reproduced for the small component are as close as
+   you need to the ones from the fit to the pure signal.
+   If this is the case the paramtrization of signal and background is OK and you can 
+   proceed to the production of parameters in experiment and simulation using the tools 
+   forseen for this purpose.
+
+4.
+   Test whether the result of the fit of the experimental data is also robust against variation 
+   of the fit range (especially the width of the narrow signal-component). Restrict the experimental
+   analysis to one sector like this:
+
+   root -l <exp-inutfile.root>      
+   .L tricks.C
+   loop(<fixedwidth>,1,<sector>)
+
+5. Verify that the simulated widths and the experimentally determined widths agree reasonably.

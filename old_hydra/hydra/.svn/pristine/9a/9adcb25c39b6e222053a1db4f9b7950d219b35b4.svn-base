@@ -1,0 +1,710 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Modified : 03/05/2002 by I. Koenig
+//*-- Created : 28/09/2000 by I. Koenig
+
+//////////////////////////////////////////////////////////////////////////////
+// HStartParOraIo
+//
+// Interface class to database Oracle for input/output of parameters needed
+// by the START detector
+// (uses the Oracle C/C++ precompiler)
+//
+//////////////////////////////////////////////////////////////////////////////
+
+#include "hstartparoraio.h"
+#include "hades.h"
+#include "hspectrometer.h"
+#include "hstartdetector.h"
+#include "hstartcalpar.h"
+#include "hstartselfcopar.h"
+#include "hstartlookup.h"
+#include "hstartgeompar.h"
+#include "hgeomcompositevolume.h"
+#include <iostream.h>
+#include <unistd.h>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// SQL Communications Area
+#include <sqlca.h>
+
+ClassImp(HStartParOraIo)
+
+#define START_MAXMODS 10
+#define START_MAXSTRIPS 100
+
+HStartParOraIo::HStartParOraIo(HOraConn* pC) : HDetParOraIo(pC) {
+  // constructor
+  // sets the name of the I/O class "HStartParIo"
+  // gets the pointer to the connection class
+  fName="HStartParIo";
+  numModules=0;
+  startIds=0;
+  initModules=0;
+  geomVersion=-1;
+}
+
+
+HStartParOraIo::~HStartParOraIo() {
+  // destructor
+  if (initModules) delete initModules;
+  if (startIds) delete startIds;
+}
+
+
+Bool_t HStartParOraIo::init(HParSet* pPar,Int_t* set) {
+  // calls special read-function for each parameter container
+  const Text_t* name=pPar->IsA()->GetName();
+  if (startIo(pPar)<=0) return kFALSE;
+  if (strcmp(name,"HStartCalPar")==0) return read(((HStartCalPar*)pPar),set);
+  if (strcmp(name,"HStartSelfCoPar")==0) return read(((HStartSelfCoPar*)pPar),set);
+  if (strcmp(name,"HStartLookup")==0) return read(((HStartLookup*)pPar),set);
+  if (strcmp(name,"HStartGeomPar")==0) return read(((HStartGeomPar*)pPar),set);
+  // cout<<"initialization of "<<pPar->GetName()<<" not possible from Oracle!"<<endl;
+  return kFALSE;
+}
+
+Int_t HStartParOraIo::write(HParSet* pPar) {
+  // calls the appropriate write function for the container
+  const Text_t* name=pPar->IsA()->GetName();
+  if (startIo(pPar)<=0) return 0;
+  if (strcmp(name,"HStartCalPar")==0) return writePar((HStartCalPar*)pPar);
+  if (strcmp(name,"HStartSelfCoPar")==0) return writePar((HStartSelfCoPar*)pPar);
+  cout<<"No write-interface to Oracle for parameter container "
+      <<pPar->GetName()<<endl;
+  return 0;
+}
+
+
+Int_t HStartParOraIo::startIo(HParSet* pPar) {
+  // Gets the run start of the first run and reads the detector setup from Oracle
+  // Returns the number of modules for this run
+  // Returns -1, if run is not found, or 0, if no modules are found for this run
+  runStart=getRunStart(pPar);
+  if (runStart>0 && startIds==0) readIds();
+  if (runStart==-1 || numModules<=0) {
+    pPar->setInputVersion(-1,inputNumber);
+    return -1;
+  }
+  return runStart;
+}
+
+
+Int_t HStartParOraIo::readIds() {
+  // Gets the run start of the actual run
+  // Reads the number of strips of all modules defined for the first run
+  //   and stores them in array startIds (the position in the array is
+  //   identical with the module position in the setup (0: START 1: VETO) 
+  // Returns -1, if the run is not found, or 0, if no modules are found for this run
+  HStartDetector* det=(HStartDetector*)(gHades->getSetup()->getDetector("Start"));
+  maxModules=det->getMaxModules();
+  maxStrips=det->getMaxComponents();
+  if (maxModules>START_MAXMODS || START_MAXSTRIPS < (maxModules*maxStrips)) {
+    Error("HStartParOraIo::readIds()",
+          "Maximum i/o buffer sizes to small:\n maximum number of modules: %i\n"
+          "maximum number of strips: %i",
+          START_MAXMODS,START_MAXSTRIPS);
+    return -1;
+  }
+  EXEC SQL BEGIN DECLARE SECTION;
+  struct {
+    int pos[START_MAXMODS];
+    int nstrips[START_MAXMODS];
+  } mods;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readIds()");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT module_pos, n_strips
+           INTO :mods
+           FROM start_ana.det_setup_at_run_hist;
+  numModules=sqlca.sqlerrd[2]; // number of rows returned by select
+  if (numModules>0) {
+    startIds=new TArrayI(START_MAXMODS); 
+    for(Int_t i=0;i<START_MAXMODS;i++) startIds->AddAt(0,i);
+    initModules=new TArrayI(START_MAXMODS);
+  }
+  for(Int_t i=0;i<numModules;i++) {
+    if (det->getModule(-1,mods.pos[i])) {
+      startIds->AddAt(mods.nstrips[i],mods.pos[i]);
+      if (mods.nstrips[i]!=maxStrips)
+      Error("HStartParOraIo::readIds()",
+            "number of strips in HStartDetector:    %i\n"
+            "number of strips in Oracle at position %i: %i",
+            maxStrips,mods.pos[i],mods.nstrips[i]);
+    }
+  }
+  // printNStrips();
+  return numModules;
+}
+
+
+void HStartParOraIo::printNStrips() {
+  // prints the number of strips of all modules in the current setup,
+  // which are found in the database
+  if (startIds) {
+    cout<<"START detector modules: ";
+    for(Int_t i=0;i<maxModules;i++) cout<<"   "<<i<<": "<<startIds->At(i);
+    cout<<'\n';
+  }
+}
+
+
+Int_t HStartParOraIo::getLookupVersion(HStartLookup* pPar) {
+  // reads the version for the StartLookup container valid at the start time
+  // of the actual run
+  // returns -1, if no data are found
+  HParOraSet* oraSet=getOraSet(pPar);
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  Double_t dateRange[2];
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      double c_since;
+      double c_until;
+      double r_since;
+      double r_until;
+    } lvrec;
+    struct {
+      short c_since_ind;
+      short c_until_ind;
+      short r_since_ind;
+      short r_until_ind;
+    } lvrec_ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getLookupVersion(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT hdate.to_ansitime(config_since), 
+                  hdate.to_ansitime(config_until),
+                  hdate.to_ansitime(dc_since),
+                  hdate.to_ansitime(dc_until)
+    INTO :lvrec INDICATOR :lvrec_ind
+    FROM tof_ana.start_lookup_time_range_hist;
+  if (lvrec.c_since!=-1) dateRange[0]=lvrec.c_since;
+  if (lvrec.r_since!=-1 && lvrec.r_since>dateRange[0]) dateRange[0]=lvrec.r_since;
+  if (lvrec.c_until!=-1) dateRange[1]=lvrec.c_until;
+  if (lvrec.r_until!=-1 && lvrec.r_until<dateRange[1]) dateRange[1]=lvrec.r_until;
+  if (contVers==-1 || runStart<oraSet->versDate[0] || runStart>oraSet->versDate[1]
+      || dateRange[0]!=oraSet->versDate[0] || dateRange[1]!=oraSet->versDate[1]) {
+    oraSet->versDate[0]=dateRange[0];
+    oraSet->versDate[1]=dateRange[1];
+    return getActRunId();
+  } else return contVers;
+notfound:
+  oraSet->clearVersDate();
+  return -1;
+};
+
+
+Bool_t HStartParOraIo::read(HStartLookup* pPar, Int_t* set) {
+  // reads and fills the container "StartLookup" for mapping TDC channels
+  // to strips
+  Int_t version=getLookupVersion(pPar);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (pPar->getInputVersion(inputNumber)==version) return kTRUE;
+  if (inputNumber==1) pPar->clear();
+  pPar->setInputVersion(version,inputNumber);
+  initModules->Reset();
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int cr[START_MAXSTRIPS];
+      int sl[START_MAXSTRIPS];
+      int ch[START_MAXSTRIPS];
+      int mo[START_MAXSTRIPS];
+      int st[START_MAXSTRIPS];
+    } lookup;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HStartLookup*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT crate, slot, channel, module, strip
+           INTO :lookup
+           FROM tof_ana.start_lookup_at_histdate;
+  for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+    Int_t m=lookup.mo[i];
+    if (set[m]) {
+      pPar->setAddress(lookup.cr[i]-1,lookup.sl[i]-1,lookup.ch[i],
+                       m,lookup.st[i]);
+      initModules->AddAt(m+1,m);
+    }
+  }
+  Bool_t allFound=kTRUE;
+  for(Int_t i=0;i<maxModules;i++) {
+    if (set[i]>0 && initModules->At(i)<=0) allFound=kFALSE;
+  }
+  if (allFound) {
+    setChanged(pPar);
+    printInfo(pPar->GetName());
+  }
+  return allFound;
+};
+ 
+
+Int_t HStartParOraIo::getVersion(HParSet* pPar,Int_t* set,Int_t* versions) {
+  // reads the version for the calibration and selfcoincidence parameters
+  // valid for the current event file
+  // returns -1, if no data are found
+  HParOraSet* oraSet=getOraSet(pPar);
+  if (oraSet->contextId==-1) return -1;
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (contVers!=-1 && runStart>=oraSet->versDate[0] && runStart<=oraSet->versDate[1])
+      return contVers;
+  oraSet->clearVersDate();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int context;
+    struct {
+      int pos[START_MAXMODS];
+      int vers[START_MAXMODS];
+      double since[START_MAXMODS];
+      double until[START_MAXMODS];
+    } parvers;
+  EXEC SQL END DECLARE SECTION;
+  context=oraSet->contextId;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getVersion(HParOraSet*,Int_t)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  const char* containerClass=pPar->IsA()->GetName();
+  if (strcmp(containerClass,"HStartCalPar")==0) {
+    EXEC SQL SELECT module_pos, version,
+                    hdate.to_ansitime(valid_since),
+                    hdate.to_ansitime(valid_until)
+             INTO :parvers
+             FROM start_ana.start_calpar_vers_at_date
+             WHERE context_id = :context;
+  } else {
+    if (strcmp(containerClass,"HStartSelfCoPar")==0) {
+    EXEC SQL SELECT module_pos, version,
+                    hdate.to_ansitime(valid_since),
+                    hdate.to_ansitime(valid_until)
+             INTO :parvers
+             FROM start_ana.start_selfcopar_vers_at_date
+             WHERE context_id = :context;
+    }
+  }
+  for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+    Int_t m=parvers.pos[i];
+    if (startIds->At(m)>0) {
+      versions[m]=parvers.vers[i];
+      if (parvers.since[i]>oraSet->versDate[0]) oraSet->versDate[0]=parvers.since[i];
+      if (parvers.until[i]<oraSet->versDate[1]) oraSet->versDate[1]=parvers.until[i];
+    }
+  }
+  if (oraSet->versDate[0]>=0) return getActRunId();
+  return -1;
+};
+
+
+Bool_t HStartParOraIo::read(HStartCalPar* pPar, Int_t* set) {
+  // reads the calibration parameters and fill the StartCalPar container
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  Int_t versions[START_MAXMODS];
+  Int_t version=getVersion(pPar,set,versions);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (contVers==version) return kTRUE;
+  if (inputNumber==1) pPar->clear();
+  pPar->setInputVersion(version,inputNumber);
+  initModules->Reset();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int modPos;
+    int vers;
+    struct {
+      int strip[START_MAXSTRIPS];
+      float slo[START_MAXSTRIPS];
+      float ofs[START_MAXSTRIPS];
+    } cal;
+    struct {
+      short strip[START_MAXSTRIPS];
+      short slo[START_MAXSTRIPS];
+      short ofs[START_MAXSTRIPS];
+    } cal_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HStartCalPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE cal_cur CURSOR FOR
+           SELECT strip, slope, offset
+           FROM start_ana.start_calpar_data
+           WHERE module_pos = :modPos AND version = :vers;
+  for(Int_t m=0;m<maxModules;m++) {
+    if (set[m] && startIds->At(m)>0 && versions[m]>0) {
+      modPos=m;
+      vers=versions[m];
+      // cout<<"cal module: "<<m<<"   Version: "<<vers<<endl;
+      EXEC SQL OPEN cal_cur;
+      EXEC SQL FETCH cal_cur INTO :cal INDICATOR :cal_Ind;
+      for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+        HStartCalParChan& chan=(*pPar)[m][cal.strip[i]];
+        chan.fill(cal.slo[i],cal.ofs[i]);
+        initModules->AddAt(m+1,m);
+      }
+    }
+  }
+  EXEC SQL CLOSE cal_cur;
+  Bool_t allFound=kTRUE;
+  for(Int_t i=0;i<maxModules;i++) {
+    if (set[i]>0) {
+      if (initModules->At(i)>0) set[i]=0;
+      else allFound=kFALSE;
+    }
+  }
+  setChanged(pPar);
+  printInfo(pPar->GetName());
+  return allFound;
+};
+
+
+Bool_t HStartParOraIo::read(HStartSelfCoPar* pPar, Int_t* set) {
+  // reads the selfcoincidence parameters and fill the StartSelfCoPar container
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  Int_t versions[START_MAXMODS];
+  Int_t s[2]={0,0};
+  s[0]=set[0];   // only Start module
+  Int_t version=getVersion(pPar,s,versions);
+  if (version==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }
+  if (contVers==version) return kTRUE;
+  pPar->clear();
+  pPar->setInputVersion(version,inputNumber);
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+    struct {
+      int strip[START_MAXSTRIPS];
+      float ti[START_MAXSTRIPS];
+      float hw[START_MAXSTRIPS];
+    } sco;
+    struct {
+      short strip[START_MAXSTRIPS];
+      short ti[START_MAXSTRIPS];
+      short hw[START_MAXSTRIPS];
+    } sco_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR GOTO error_found;
+  if (set[0] && startIds->At(0)>0 && versions[0]>0) {
+    vers=versions[0];
+    // cout<<"SelfCoPar:   Version: "<<vers<<endl;
+    EXEC SQL SELECT strip, time, halfwidth INTO :sco INDICATOR :sco_Ind
+             FROM start_ana.start_selfcopar_data
+             WHERE module_pos = 0 AND version = :vers;
+    for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+      HStartSelfCoParChan& chan=(*pPar)[0][sco.strip[i]];
+      chan.fill(sco.ti[i],sco.hw[i]);
+    }
+    if (sqlca.sqlerrd[2]>0) {
+      setChanged(pPar);
+      cout<<pPar->GetName()<<" initialized from Oracle\n";
+      return kTRUE;
+    }
+  }
+  return kFALSE;
+error_found:
+  showSqlError("read(HStartCalPar*,Int_t*)");
+  return kFALSE;
+}
+
+  
+Bool_t HStartParOraIo::read(HStartGeomPar* pPar, Int_t* set) {
+  // reads the geometry of the START and fills the StartGeomPar container
+  Bool_t allFound=kTRUE;
+  if (pPar->isFirstInitialization()) {
+    if (!readModGeomNames(pPar,set,geomVersion) || !readCompGeomNames(pPar,set))
+      allFound=kFALSE;
+  } else {
+    if (geomVersion<0) geomVersion=readGeomVersion();
+  }
+  if (allFound && geomVersion>0 ) return readGeometry(pPar,set,geomVersion,kFALSE);
+  pPar->clear();
+  return kFALSE;    
+}
+
+
+Int_t HStartParOraIo::readGeomVersion() {
+  // reads the geometry version for the START detector
+  // (differnt versions for different mounting)
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readModGeomNames");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT DISTINCT geom_vers_index
+           INTO :vers
+           FROM start_ana.det_setup_at_run_hist;
+  return vers;
+notfound:
+  return -1;
+}
+
+
+Bool_t HStartParOraIo::readModGeomNames(HStartGeomPar* pPar,Int_t* set,Int_t& geomVersion) {
+  // reads the geometry object names of all modules and the geometry version
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int pos[START_MAXMODS];
+      varchar oname[START_MAXMODS][9];
+      int vers[START_MAXMODS];
+    } mods;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readModGeomNames");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT module_pos, geom_obj_name, geom_vers_index
+           INTO :mods
+           FROM start_ana.det_setup_at_run_hist;
+  Int_t nMods=sqlca.sqlerrd[2]; // number of rows returned by select
+  Bool_t allFound=kTRUE;
+  if (nMods>0) {
+    geomVersion=mods.vers[0];
+    initModules->Reset();
+    Int_t m;
+    for(Int_t i=0;i<nMods;i++) {
+      m=mods.pos[i];
+      HModGeomPar* pMod=pPar->getModule(-1,m);
+      if (set[m] && pMod && startIds->At(m)>0) {
+        mods.oname[i].arr[mods.oname[i].len]='\0';
+        pMod->SetName((char*)(mods.oname[i].arr));
+        initModules->AddAt(m+1,m);
+        pMod->setRefName(pMod->GetName());
+        Int_t mr=pPar->getModNumInMod(pMod->GetName());
+        HGeomCompositeVolume* refMod=pPar->getRefVolume(mr);
+        if (refMod==0) {
+          refMod=new HGeomCompositeVolume(pPar->getNumComponents());
+          refMod->SetName(pMod->GetName());
+          pPar->addRefVolume(refMod,mr);
+        }
+        pMod->setVolume(refMod);
+      }
+    }
+    for(Int_t i=0;i<maxModules;i++) {
+      if (set[i]>0 && initModules->At(i)==0) allFound=kFALSE;
+    }
+  } else allFound=kFALSE;
+  return allFound;
+}
+
+
+Bool_t HStartParOraIo::readCompGeomNames(HStartGeomPar* pPar,Int_t* set) {
+  // reads the geometry object names of all modules and the geometry version
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int pos[START_MAXSTRIPS];
+      int strip[START_MAXSTRIPS];
+      varchar oname[START_MAXSTRIPS][9];
+    } strips;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readCompGeomNames");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT module_pos, strip_no, geom_obj_name
+           INTO :strips
+           FROM start_ana.det_strip;
+  Int_t nStrips=sqlca.sqlerrd[2]; // number of rows returned by select
+  Int_t m;
+  for(Int_t i=0;i<nStrips;i++) {
+    m=strips.pos[i];
+    HModGeomPar* pMod=pPar->getModule(-1,m);
+    if (set[m] && pMod) {
+      HGeomCompositeVolume* pRefMod=pMod->getRefVolume();
+      HGeomVolume* volu=pRefMod->getComponent(strips.strip[i]);
+      strips.oname[i].arr[strips.oname[i].len]='\0';
+      volu->SetName((char*)(strips.oname[i].arr));
+      initModules->AddAt(m+1,m);
+    }
+  }
+  Bool_t allFound=kTRUE;
+  for(Int_t i=0;i<maxModules;i++) {
+    if (set[i]>0 && initModules->At(i)==0) allFound=kFALSE;
+  }
+  return allFound;
+};
+
+
+Int_t HStartParOraIo::writePar(HStartCalPar* pPar) {
+  // creates a new version and writes the calibration parameters to Oracle
+  Int_t version=createVers(pPar);
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int pos[START_MAXSTRIPS];
+    int strip[START_MAXSTRIPS];
+    int vers[START_MAXSTRIPS];
+    float slo[START_MAXSTRIPS];
+    float ofs[START_MAXSTRIPS];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  for(Int_t m=0; m<pPar->getSize(); m++) {
+    HStartCalParMod& rMod= (*pPar)[m];
+    Int_t nChan=0;
+    if (startIds->At(m)>0) {  
+      for(Int_t c=0; c<rMod.getSize(); c++) {
+        HStartCalParChan& chan= rMod[c];
+        pos[nChan]=m;
+        strip[nChan]=c;
+        vers[nChan]=version;
+        slo[nChan]=chan.getSlope();
+        ofs[nChan]=chan.getOffset();
+        nChan++;
+      }
+    }
+    if (nChan==0) continue;
+    rows_to_insert=nChan;
+    if (nChan != startIds->At(m)) {
+      Error("writePar(HStartCalPar*)",
+            "\n Number of strips in Oracle:       %i"
+            " \n Number of channels in StartCalPar: %i\n",
+              startIds->At(m),nChan);
+      rollback();
+      return -1;
+    }
+    EXEC SQL WHENEVER SQLERROR GOTO not_found;
+    EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+    EXEC SQL FOR :rows_to_insert
+      INSERT INTO start_ana.calpar_data (strip_id, vers_id, slope, offset)
+          VALUES (start_ana.start_par_query.get_strip_id(:pos,:strip),
+                  :vers, :slo, :ofs);
+      cout<<"module_pos: "<<m<<"    "<<rows_to_insert<<" rows inserted\n";
+  }
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writePar(HStartCalPar*)");
+  rollback();
+  pPar->setChanged(kFALSE);
+  return -1;
+}
+
+
+Int_t HStartParOraIo::writePar(HStartSelfCoPar* pPar) {
+  // creates a new version and writes the calibration parameters to Oracle
+  Int_t version=createVers(pPar);
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int pos[START_MAXSTRIPS];
+    int strip[START_MAXSTRIPS];
+    int vers[START_MAXSTRIPS];
+    float ti[START_MAXSTRIPS];
+    float hw[START_MAXSTRIPS];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  HStartSelfCoParMod& rMod= (*pPar)[0];
+  Int_t nChan=0;
+  if (startIds->At(0)>0) {  
+    for(Int_t c=0; c<rMod.getSize(); c++) {
+      HStartSelfCoParChan& chan= rMod[c];
+      pos[nChan]=0;
+      strip[nChan]=c;
+      vers[nChan]=version;
+      ti[nChan]=chan.getTime();
+      hw[nChan]=chan.getHalfWidth();
+      nChan++;
+    }
+  }
+  if (nChan==0) {
+    rollback();
+    pPar->setChanged(kFALSE);
+    return -1;
+  }
+  rows_to_insert=nChan;
+  if (nChan != startIds->At(0)) {
+    Error("writePar(HStartSelfCoPar*)",
+          "\n Number of strips in Oracle:       %i"
+          " \n Number of channels in StartSelfCoPar: %i\n",
+          startIds->At(0),nChan);
+    rollback();
+    return -1;
+  }
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL FOR :rows_to_insert
+    INSERT INTO start_ana.selfcopar_data (strip_id, vers_id, time, halfwidth)
+        VALUES (start_ana.start_par_query.get_strip_id(:pos,:strip),
+                :vers, :ti, :hw);
+  cout<<"Start module:    "<<rows_to_insert<<" rows inserted\n";
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writePar(HStartSelfCoPar*)");
+  rollback();
+  pPar->setChanged(kFALSE);
+  return -1;
+}
+
+
+Int_t HStartParOraIo::createVers(HParSet* pPar) {
+  // creates a new version for the calibration or selfcoincidence parameters
+  // return the new version
+  cout<<"---------------  "<<pPar->GetName()<<"   ---------------\n";
+  if (strlen(pPar->getAuthor())==0) {
+    Error("createVers(HParSet*)",
+          "author of parameters not defined");
+    return -1;
+  }
+  if (strlen(pPar->getDescription())==0) {
+    Error("createVers(HParSet*)",
+          "descriction of parameters not defined");
+    return -1;
+  }
+  EXEC SQL BEGIN DECLARE SECTION;
+    int   vers=-1;
+    int   context;
+    int   run;
+    char* creator;
+    char* descript;
+  EXEC SQL END DECLARE SECTION;
+  context = getContextId(pPar->IsA()->GetName(),pPar->getParamContext());
+  if (context==-1) return -1;
+  run=getActRunId();
+  creator=(char*)pPar->getAuthor();
+  descript=(char*)pPar->getDescription();
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  const char* contName=pPar->IsA()->GetName();
+  if (strcmp(contName,"HStartCalPar")==0) {
+    EXEC SQL EXECUTE
+      BEGIN
+        SELECT start_ana.start_par_query.next_version INTO :vers FROM DUAL;
+        INSERT INTO start_ana.calpar_vers
+                   (vers_id, orig_context_id, run_id, author, description)
+            VALUES (:vers, :context, :run, :creator, :descript);
+      END;
+    END-EXEC;
+  } else {
+    if (strcmp(contName,"HStartSelfCoPar")==0) {
+      EXEC SQL EXECUTE
+        BEGIN
+          SELECT start_ana.start_par_query.next_version INTO :vers FROM DUAL;
+          INSERT INTO start_ana.selfcopar_vers
+                     (vers_id, orig_context_id, run_id, author, description)
+              VALUES (:vers, :context, :run, :creator, :descript);
+        END;
+      END-EXEC;
+    }
+  }
+  cout<<"Oracle version for "<<pPar->GetName()<<" created:  "<<vers<<endl;
+  return vers;
+not_found:
+  showSqlError("createVers(HParSet*)");
+  return vers;
+}
+
+
+void HStartParOraIo::printInfo(const char* contName) {
+  // prints the modules initialized from Oracle
+  // will later go to the log file
+  Bool_t first=kTRUE;
+  for(Int_t i=0;i<maxModules;i++) {
+    if (initModules->At(i)) {
+      if (first) {
+        cout<<contName<<": module(s) initialized from Oracle: ";
+        first=kFALSE;
+      }
+      cout<<(initModules->At(i)-1)<<" ";
+    }
+  }
+  cout<<'\n';
+}
+ 
+

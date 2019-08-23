@@ -1,0 +1,50 @@
+# The "loginfo" file controls where "cvs commit" log information
+# is sent.  The first entry on a line is a regular expression which must match
+# the directory that the change is being made to, relative to the
+# $CVSROOT.  If a match is found, then the remainder of the line is a filter
+# program that should expect log information on its standard input.
+#
+# If the repository name does not match any of the regular expressions in this
+# file, the "DEFAULT" line is used, if it is specified.
+#
+# If the name ALL appears as a regular expression it is always used
+# in addition to the first matching regex or DEFAULT.
+#
+# You may specify a format string as part of the
+# filter.  The string is composed of a `%' followed
+# by a single format character, or followed by a set of format
+# characters surrounded by `{' and `}' as separators.  The format
+# characters are:
+#
+#   s = file name
+#   V = old version number (pre-checkin)
+#   v = new version number (post-checkin)
+#
+# For example:
+#DEFAULT (echo ""; id; echo %s; date; cat) >> $CVSROOT/CVSROOT/commitlog
+# or           |                                                                            |
+ALL (echo "=============================================================================="; id -nu; echo %{sVv}; date; cat) >> $CVSROOT/CVSROOT/commitlog
+^base (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/base; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^mdc (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/mdc; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^tof (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/tof; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^rich (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/rich; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^shower (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/shower; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^ora (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/ora; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^mdctrackS (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/mdctrackS; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^mdctrackD (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/mdctrackD; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^kickplane (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/kickplane; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^tofino (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/tofino; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^richutil (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/richutil; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^showerutil (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/showerutil; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^showertofino (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/showertofino; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^trigger (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/trigger; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^evtserver (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/evtserver; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^phyana (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/phyana; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^alignment (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/alignment; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+^online (echo "------------------------------------------------------------------------------"; id -nu; date; cat; (sleep 2; cd $CVSROOT/uptodate/online; cvs -q update)& ) >> $CVSROOT/CVSROOT/updatelog 2>&1
+
+
+
+
+
+

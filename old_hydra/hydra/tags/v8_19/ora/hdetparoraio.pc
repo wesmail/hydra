@@ -1,0 +1,1214 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Modified : 19/10/2005 by Ilse Koenig
+
+//_HADES_CLASS_DESCRIPTION 
+//////////////////////////////////////////////////////////////////////////////
+// HDetParOraIo
+//
+// Base class for all detector I/O  classes from database Oracle
+// (uses the Oracle C/C++ precompiler)
+//
+//////////////////////////////////////////////////////////////////////////////
+
+using namespace std;
+#include "horaconn.h"
+#include "hdetparoraio.h"
+#include "hades.h"
+#include "hruntimedb.h"
+#include "hrun.h"
+#include "hparset.h"
+#include "hparcond.h"
+#include "hparamlist.h"
+#include "hdetgeompar.h"
+#include "hspecgeompar.h"
+#include "hgeomcompositevolume.h"
+#include "hgeomoradetversion.h"
+#include <iostream>
+#include <iomanip>
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// Include the SQL Communications Area
+#include <sqlca.h>
+ 
+ClassImp(HDetParOraIo)
+ClassImp(HParOraSet)
+ClassImp(HOraGeomObj)
+
+#define NMAX_PARAM 200
+#define NMAX_MOD 132
+#define NMAX_POINTS 100
+#define LOB_BUFSIZE 32512
+
+HParOraSet::HParOraSet(const Char_t* pName) {
+  SetName(pName);
+  contextId=-1;
+  clearVersDate();
+}
+
+void HParOraSet::clearVersDate() {
+  versDate[0]=-1;
+  versDate[1]=1.E+12;
+}
+
+HDetParOraIo::HDetParOraIo(HOraConn* pC) : HDetParIo() {
+  // constructor gets a pointer to the connection class
+  pConn=pC;
+  actContVers=0;
+  actRunId=-1;
+  containerList=0;
+}
+
+HDetParOraIo::~HDetParOraIo(void) {
+  // destructor
+  if (containerList) {
+    containerList->Delete();
+    delete containerList;
+    containerList=0;
+  } 
+}
+
+void HDetParOraIo::commit(void) {
+  // commits all changes
+  EXEC SQL COMMIT WORK;
+  cout<<"Transaction committed"<<endl;
+  return;
+}
+ 
+
+void HDetParOraIo::rollback(void) {
+  // discards all changes since last commit
+  EXEC SQL ROLLBACK WORK;
+  cout<<"Transaction rolled back"<<endl;
+  return;
+}
+
+
+void HDetParOraIo::showSqlError(const Char_t* f) {
+  // shows SQL error messages 
+  Error(f,"\n%s",sqlca.sqlerrm.sqlerrmc);
+}
+
+
+Int_t HDetParOraIo::getRunStart(HParSet* pPar) {
+  // Gets the actual run id from the runtime database and compares it with
+  // the last used actRunId for fetching data.
+  // If they are different, the run start time (converted to ansi C time) is
+  // read from Oracle and stored together with the run id in the data members
+  // run_id and runStart
+  actRunId=-1;
+  Int_t runStart=-1;
+  actContVers=(HRun*)gHades->getRuntimeDb()->getCurrentRun();
+  if (!actContVers) {
+    Error("getRunStart()","current run not set in runtime database");
+    return -1;
+  }
+  const Text_t* refRun=actContVers->getRefRun();
+  if (strlen(refRun)>0) sscanf(refRun,"%i",&actRunId); 
+  else actRunId=actContVers->getRunId();
+  if (pPar) {
+    Int_t contVers=getPredefVersion(pPar);
+    if (contVers>=0) actRunId=contVers;
+  }
+  runStart=pConn->getRunStart(actRunId);
+  return runStart;
+}
+
+
+const Char_t* HDetParOraIo::getExpLocation() {
+  // returns the experiment location
+  // (HADES_CAVE: beamtime runs,  VIRTUAL: simulation runs)
+  return pConn->getExpLocation();
+}
+
+
+const Char_t* HDetParOraIo::getHistoryDate() {
+  // returns the timestamp set by the user to read historic data
+  return pConn->getHistoryDate();
+}
+
+
+Int_t HDetParOraIo::getPredefVersion(HParSet* pPar) {
+  // finds out if a version for the parameter container has been set by
+  // the user (typically by defining a reference run for initialisation
+  // in the macro
+  // returns -1, if no version found 
+  HParVersion* pv=(HParVersion*)actContVers->getParVersion((Char_t*)pPar->GetName());
+  if (pv) return pv->getInputVersion(inputNumber);
+  else return -1;
+}
+
+
+//*********************************************************************************
+//**********  Interface for conditions and standard parameter containers **********
+//*********************************************************************************
+
+
+HParOraSet* HDetParOraIo::getOraSet(HParSet* pPar) {
+  if (!containerList) containerList=new TList;
+  HParOraSet* pSet=(HParOraSet*)(containerList->FindObject(pPar->GetName()));
+  if (!pSet) { 
+    pSet=new HParOraSet(pPar->GetName());
+    pSet->contextId=getContextId(pPar->IsA()->GetName(),pPar->getParamContext());
+    containerList->Add(pSet);
+  }
+  return pSet;
+}
+
+Int_t HDetParOraIo::getContextId(const Char_t* className, const Char_t* paramContext) {
+  // return the parameter_context_id
+  if (strlen(paramContext)==0) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+     char* p_class;
+     char* p_context;
+     char* p_exp_loc;
+     int context_id=-1;
+  EXEC SQL END DECLARE SECTION;
+  p_class=(Char_t*)className;
+  p_context=(Char_t*)paramContext;
+  p_exp_loc=(Char_t*)pConn->getExpLocation();
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL SELECT context_id
+           INTO :context_id
+           FROM hanal.all_param_contexts
+           WHERE class = :p_class and context = :p_context
+             AND exp_location_id = :p_exp_loc ;
+  // cout<<"Id of context "<<paramContext<<": "<<context_id<<endl;
+  return context_id;
+not_found:
+  Error("HDetParOraIo::getContextId","\nContext %s for class %s not found!",
+        p_context,p_class);
+  return -1;
+};
+
+void HDetParOraIo::setChanged(HParSet* pPar) {
+  // sets the changed flag, the version (id of actual run) and the comment
+  pPar->setChanged();
+  pPar->setInputVersion(getActRunId(),inputNumber);
+  TString s="Read from Oracle\n             Valid for Run Id ";
+  s.Append(Form("%d",getActRunId()));
+  s.Append("\n             Status at ");
+  s.Append(pConn->getHistoryDate());
+  pPar->setDescription(s.Data());    
+}
+
+Bool_t HDetParOraIo::readCond(HParCond* pPar, Int_t*) {
+  // reads the analysis parameters and fill the container
+  Int_t runStart=getRunStart(pPar);
+  HParOraSet* pSet=getOraSet(pPar);
+  if (pSet->contextId==-1 || runStart==-1) {
+    pPar->setInputVersion(-1,inputNumber);
+    return kFALSE;
+  }    
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (contVers!=-1 && runStart>=pSet->versDate[0] && runStart<=pSet->versDate[1])
+    return contVers;
+  pSet->clearVersDate();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id; 
+    struct {
+      varchar p_name[NMAX_PARAM][81];
+      varchar p_value[NMAX_PARAM][4001];
+      varchar p_type[NMAX_PARAM][81];
+      int     p_is_binary[NMAX_PARAM]; 
+      int     p_is_basic[NMAX_PARAM]; 
+      int     p_class_vers[NMAX_PARAM]; 
+      int     p_num[NMAX_PARAM];
+      int     p_streamer[NMAX_PARAM];
+      double  p_since[NMAX_PARAM];
+      double  p_until[NMAX_PARAM];
+    } ana;
+    struct {
+      short p_name_Ind[NMAX_PARAM];
+      short p_value_Ind[NMAX_PARAM];
+      short p_type_Ind[NMAX_PARAM];
+      short p_is_binary_Ind[NMAX_PARAM];
+      short p_is_basic_Ind[NMAX_PARAM];
+      short p_class_vers_Ind[NMAX_PARAM];
+      short p_num_Ind[NMAX_PARAM];
+      short p_streamer_Ind[NMAX_PARAM];
+      short p_since_Ind[NMAX_PARAM];
+      short p_until_Ind[NMAX_PARAM];
+    } ana_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HParSet*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  id=pSet->contextId;
+  EXEC SQL SELECT par_name, par_value, par_value_type, is_binary, is_basic_type,
+                  class_version, n_values, streamerinfo_id,
+                  hdate.to_ansitime(valid_since), hdate.to_ansitime(valid_until)
+           INTO :ana INDICATOR :ana_Ind
+           FROM hanal.param_values_at_histdate_ext
+           WHERE param_context_id = :id
+           ORDER BY par_value_id;
+  HParamList* paramList = new HParamList;
+  TList* blobList=new TList;
+  for(Int_t i=0;i<sqlca.sqlerrd[2];i++) {
+    if (ana_Ind.p_name_Ind[i]!=-1 && ana_Ind.p_value_Ind[i]!=-1) {
+      ana.p_name[i].arr[ana.p_name[i].len]='\0';    
+      ana.p_value[i].arr[ana.p_value[i].len]='\0';
+      ana.p_type[i].arr[ana.p_type[i].len]='\0';
+      if (ana.p_since[i]>pSet->versDate[0]) pSet->versDate[0]=ana.p_since[i];
+      if (ana.p_until[i]<pSet->versDate[1] || pSet->versDate[1]<0)
+        pSet->versDate[1]=ana.p_until[i];
+      if (ana.p_is_binary[i]==0)
+        paramList->add((Char_t*)(ana.p_name[i].arr),(Char_t*)(ana.p_value[i].arr),
+                       ana.p_type[i].arr[0],ana.p_num[i]);
+      else {
+        HParamBinObj* o=new HParamBinObj;
+        o->SetName((Char_t*)(ana.p_name[i].arr));
+        o->setParamType((Char_t*)(ana.p_type[i].arr));
+        if (ana.p_is_basic[i]==0) o->setClassVersion(ana.p_class_vers[i]);
+        paramList->getBinaryList()->Add(o);
+        Int_t lobId;
+        sscanf((Char_t*)(ana.p_value[i].arr),"%i",&lobId);
+        HParOraBlob* ob=new HParOraBlob(o,lobId);
+        if (ana_Ind.p_streamer_Ind[i]!=-1) ob->blobStreamerId=ana.p_streamer[i];
+        blobList->Add(ob);
+      }
+    }
+  }
+  TIter next(blobList);
+  HParOraBlob* b;
+  Bool_t rc;
+  if (sqlca.sqlerrd[2]==0) rc=kFALSE;
+  else rc=kTRUE;
+  while ((b=(HParOraBlob*)next())!=0 && rc) {
+    rc=readBlob(b->binaryParam,b->blobId,kFALSE);
+    if (rc&&b->blobStreamerId>0) rc=readBlob(b->binaryParam,b->blobStreamerId,kTRUE);
+  }    
+  if (rc) rc=pPar->getParams(paramList);
+  else pPar->setInputVersion(-1,inputNumber);
+  blobList->Delete();
+  delete blobList;  
+  delete paramList;
+  if (rc==kTRUE) {
+    setChanged(pPar);
+    cout<<pPar->GetName()<<" initialized from Oracle"<<'\n';
+  }
+  return rc;
+}
+
+Bool_t HDetParOraIo::readBlob(HParamBinObj* obj,Int_t lobId,Bool_t isStreamerInfo) {
+  EXEC SQL BEGIN DECLARE SECTION;
+    int            id;
+    unsigned int   loblength;
+    unsigned int   amount;
+    unsigned int   offset;
+    unsigned char  buffer[LOB_BUFSIZE];
+    EXEC SQL VAR buffer IS RAW(LOB_BUFSIZE);
+  EXEC SQL END DECLARE SECTION;
+  id=lobId;
+  amount=LOB_BUFSIZE;
+  UChar_t* pBlob=0;
+  UInt_t amountRead=0;
+  EXEC SQL WHENEVER SQLERROR GOTO notfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  if (isStreamerInfo) {
+    EXEC SQL EXECUTE
+      BEGIN
+        hanal.hap_param_lob_access.read_streamerinfo(:id,:amount,:loblength,:buffer);
+      END;
+    END-EXEC;
+    obj->setStreamerInfoSize(loblength);
+    pBlob=obj->getStreamerInfo();
+  } else {
+    EXEC SQL EXECUTE
+      BEGIN
+        hanal.hap_param_lob_access.read_blob(:id,:amount,:loblength,:buffer);
+      END;
+    END-EXEC;
+    obj->setLength(loblength);
+    pBlob=obj->getParamValue();
+  }
+  amountRead=amount;
+  memcpy((UChar_t*)pBlob,buffer,amount);
+  while (amountRead<loblength) {
+    amount= (loblength>LOB_BUFSIZE) ? LOB_BUFSIZE : loblength ;
+    offset=amountRead+1;
+    EXEC SQL EXECUTE
+      BEGIN
+        hanal.hap_param_lob_access.read_next_buffer(:amount,:offset,:buffer);
+      END;
+    END-EXEC;
+    memcpy((UChar_t*)(&pBlob[amountRead]),buffer,amount);
+    amountRead+=amount;
+  }
+  return kTRUE;
+notfound:
+  showSqlError("readBlob");
+  if (isStreamerInfo) Error("readBlob","StreamerInfo Blob %i not read",lobId);
+  else Error("readBlob","Value Blob %i not read",lobId);
+  return kFALSE;
+}
+
+Int_t HDetParOraIo::createParamVers(HParCond* pPar) {
+  // create analysis parameter version in Oracle
+  // returns version number or -1 if error occurred
+  EXEC SQL BEGIN DECLARE SECTION;
+     char* p_class;
+     char* p_author;
+     char* p_descript;
+     char* p_context;
+     char* p_exp_loc;
+     int vers=-1;
+     int context_id=-1;
+  EXEC SQL END DECLARE SECTION;
+  p_class=(Char_t*)(pPar->IsA()->GetName());
+  p_author=(Char_t*)(pPar->getAuthor());
+  p_descript=(Char_t*)(pPar->getDescription());
+  p_context=(Char_t*)(pPar->getParamContext());
+  p_exp_loc=(Char_t*)(pConn->getExpLocation());
+  if (strlen(p_author)==0) {
+    Error("createParamVers(...)",
+          "author of parameters not defined");
+    return -1;
+  }
+  if (strlen(p_descript)==0) {
+    Error("createParamVers(...)",
+          "description of parameters not defined");
+    return -1;
+  }
+  if (strlen(p_context)==0) {
+    Error("createParamVers(...)",
+          "Purpose of parameters not defined");
+    return -1;
+  }
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    DECLARE
+    BEGIN
+      :context_id := hanal.hap_param_query.get_context_id(
+                         :p_class,:p_context,:p_exp_loc);
+      IF :context_id > 0 THEN
+        :vers := hanal.hap_param_query.next_param_vers_load(:p_class);
+        IF :vers > 0 THEN
+          INSERT INTO hanal.param_vers_load
+            (param_vers_load_id,param_context_id,author,description)
+            VALUES (:vers,:context_id,:p_author,:p_descript);
+        END IF;
+      END IF;
+    END;
+  END-EXEC;
+  return vers;
+not_found:
+  showSqlError("createParamVers(const Char_t*)");
+  rollback();
+  return vers;    
+};
+
+Int_t HDetParOraIo::writeCond(HParCond* pPar) {
+  // write analysis parameters to Oracle
+  Int_t runStart=getRunStart();
+  if (runStart==-1) {
+    pPar->setChanged(kFALSE);
+    return -1;
+  }    
+  cout<<"---------------  Storage of "<<pPar->GetName()<<"  ---------------\n";
+  Int_t version=createParamVers(pPar);
+  if (version==-1) return -1;
+  cout<<"****************************************************************\n";
+  cout<<"***  Version:                     "<<version<<endl;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers[NMAX_PARAM];
+    char p_name[NMAX_PARAM][81];
+    char p_value[NMAX_PARAM][4000];
+    char p_type[NMAX_PARAM][81];
+    int  p_is_binary[NMAX_PARAM];
+    int  p_is_basic[NMAX_PARAM];
+    int p_nvalues[NMAX_PARAM];
+    int p_num[NMAX_PARAM];
+    int p_class_vers [NMAX_PARAM];
+    int p_streamerinfo [NMAX_PARAM];
+    short class_vers_Ind [NMAX_PARAM];
+    short streamerinfo_Ind [NMAX_PARAM];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  HParamList* paramList = new HParamList;
+  pPar->putParams(paramList);
+  TList* pList=paramList->getList();
+  TIter next(pList);
+  HParamObj* po;
+  TList* pBinList=paramList->getBinaryList();
+  TIter nextBin(pBinList);
+  HParamBinObj* pbo;
+  Int_t n=0, m=0;
+  while ((po=(HParamObj*)next())) {
+    vers[n]=version;
+    strcpy(p_name[n],po->GetName());
+    strcpy(p_value[n],po->getParamValue());
+    p_type[n][0]=po->getParamType();
+    p_type[n][1]='\0';
+    p_is_binary[n]=0;
+    p_is_basic[n]=1;
+    p_nvalues[n]=po->getNumParams();
+    p_num[n]=n+1;
+    n++;
+  }
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  if (n>0) {
+    rows_to_insert=n;
+    EXEC SQL FOR :rows_to_insert
+      INSERT INTO hanal.param_value_load
+        ( param_vers_load_id,param_name,param_value,param_value_type,
+          is_binary,is_basic_type,nvalues,param_num)
+        VALUES(:vers,:p_name,:p_value,:p_type,:p_is_binary,:p_is_basic,
+          :p_nvalues,:p_num);
+    cout<<"***  Number of parameters:        "<<rows_to_insert<<endl;
+  }
+  m=n;
+  n=0;
+  while ((pbo=(HParamBinObj*)nextBin())) {
+    vers[n]=version;
+    strcpy(p_name[n],pbo->GetName());
+    strcpy(p_type[n],pbo->getParamType());
+    p_is_binary[n]=1;
+    if (pbo->isBasicType()) {
+      p_is_basic[n]=1;
+      class_vers_Ind[n]=-1;
+    } else {
+      p_is_basic[n]=0;
+      p_class_vers[n]=pbo->getClassVersion();
+      class_vers_Ind[n]=0;
+      p_nvalues[n]=0;
+    }
+    p_nvalues[n]=pbo->getNumParams();
+    sprintf(p_value[n],"%i",storeBlob(pbo->getParamValue(),pbo->getLength(),kFALSE));
+    p_num[n]=m+n+1;
+    if (pbo->getStreamerInfoSize()>0&&pbo->getStreamerInfo()!=0) {
+      p_streamerinfo[n]=storeBlob(pbo->getStreamerInfo(),pbo->getStreamerInfoSize(),kTRUE);
+      streamerinfo_Ind[n]=0;
+    } else {
+      streamerinfo_Ind[n]=-1;
+    }
+    n++;
+  }
+  if (n>0) {
+    rows_to_insert=n;
+    EXEC SQL FOR :rows_to_insert
+      INSERT INTO hanal.param_value_load
+          (param_vers_load_id,param_name,param_value,param_value_type,
+           is_binary,is_basic_type,nvalues,param_num,class_version,streamerinfo_id)
+        VALUES(:vers,:p_name,:p_value,:p_type,:p_is_binary,:p_is_basic,
+               :p_nvalues,:p_num,:p_class_vers:class_vers_Ind,:p_streamerinfo:streamerinfo_Ind);
+    cout<<"***  Number of binary parameters: "<<rows_to_insert<<endl;
+  }
+  cout<<"***  "<<pPar->GetName()<<" written to Oracle"<<endl;
+  cout<<"****************************************************************\n";
+  commit();
+  pPar->setChanged(kFALSE);
+  delete paramList;
+  return version;
+not_found:
+  showSqlError("writeCond(HParCond*)");
+  rollback();
+  pPar->setChanged(kFALSE);
+  delete paramList;
+  return -1;
+}
+
+Int_t HDetParOraIo::storeBlob(UChar_t* pValue, Int_t pLength,Bool_t isStreamerInfo) {
+  EXEC SQL BEGIN DECLARE SECTION;
+    unsigned char buffer[LOB_BUFSIZE];
+    int           totlen;
+    int           amount;
+    int           offset;
+    int           id;
+    EXEC SQL VAR buffer IS RAW(LOB_BUFSIZE);
+  EXEC SQL END DECLARE SECTION;
+  offset=1;
+  totlen=pLength;
+  amount= (totlen>LOB_BUFSIZE) ? LOB_BUFSIZE : totlen;
+  memcpy(buffer,pValue,amount);
+  id=-1;
+  Int_t restlen=totlen-amount;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO errorfound;
+  if (isStreamerInfo) {
+    EXEC SQL EXECUTE
+      DECLARE
+      BEGIN
+        hanal.hap_param_lob_access.add_streamerinfo(:totlen,:amount,:buffer,:id);
+      END;
+    END-EXEC;
+  } else {
+    EXEC SQL EXECUTE
+      DECLARE
+      BEGIN
+        hanal.hap_param_lob_access.add_blob(:totlen,:amount,:buffer,:id);
+      END;
+    END-EXEC;
+  }
+  while (restlen>0) {
+    offset+=LOB_BUFSIZE;
+    amount= (restlen>LOB_BUFSIZE) ? LOB_BUFSIZE : restlen;
+    memcpy(buffer,&pValue[offset-1],amount);
+    EXEC SQL EXECUTE
+      DECLARE
+      BEGIN
+        hanal.hap_param_lob_access.append_to_blob(:id,:amount,:offset,:buffer);
+      END;
+    END-EXEC;
+    restlen-=amount;
+  }
+  return id;
+errorfound:
+  showSqlError("storeBlob");
+  EXEC SQL ROLLBACK WORK;
+  cout<<"Blob not stored."<<endl;
+  return -1;
+}
+
+//*********************************************************************************
+//**********  Interface for geometry and alignment  *******************************
+//*********************************************************************************
+
+void HDetParOraIo::addGeomOraSet(HDetGeomPar* pPar) {
+  // Adds the geometry parameter container to the list of containers
+  HParOraSet* oraSet=0;
+  if (!containerList) containerList=new TList;
+  else oraSet=(HParOraSet*)(containerList->FindObject(pPar->GetName()));
+  if (!oraSet) {
+    oraSet=new HParOraSet(pPar->GetName());
+    containerList->Add(oraSet);
+  }
+}
+
+Bool_t HDetParOraIo::readDetectorGeometry(HDetGeomPar* pPar,Int_t* set,
+                                          HGeomOraDetVersion* detVers) {
+  // Reads the geometry
+  if (detVers==0) return kFALSE;
+  Int_t runStart=getRunStart(pPar);
+  if (runStart==-1) return -1;
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  HParOraSet* oraSet=0;
+  Bool_t needsGeomInit=kFALSE, needsAlignmentInit=kFALSE, allFound=kTRUE;
+  Int_t geomVers=detVers->getGeomVersion();;
+  if (runStart<detVers->getSince()||runStart>detVers->getUntil()) {
+    needsGeomInit=kTRUE;
+    Int_t detId=detVers->getDetectorId();
+    if (detId<0) {
+      geomVers=getGeomVersion(pPar->getDetectorName(),detVers);
+    } else {
+      geomVers=getGeomVersion(detId,detVers); 
+    }
+  }
+  if (geomVers<=0) {
+    allFound=kFALSE;
+  }
+  Int_t alignmentVers=-1;
+  if (allFound&&containerList&&strcmp(pConn->getExpLocation(),"VIRTUAL")!=0) {    
+    oraSet=(HParOraSet*)(containerList->FindObject(pPar->GetName()));
+    if (oraSet) {
+      Int_t contextId=oraSet->contextId; 
+      if (contextId<0) {
+        contextId=getContextId("HDetGeomPar",pPar->getParamContext());
+        if (contextId==-1) return kFALSE;
+        oraSet->contextId=contextId;
+      }
+      Double_t oldUntil=oraSet->versDate[1];    
+      if (contVers<=0 || runStart<oraSet->versDate[0] || runStart>oldUntil) {
+        alignmentVers=getAlignmentVersion(oraSet,pPar->getDetectorName());
+        if (alignmentVers>0||oldUntil!=-1) needsAlignmentInit=kTRUE;
+      } 
+    }
+  }
+  if (allFound&&needsGeomInit||needsAlignmentInit) {
+    TList geomObjects;
+    for(Int_t pos=0;pos<pPar->getNumModules();pos++) {
+      HModGeomPar* pMod=pPar->getModule(pos);
+      if (pMod && set[pos])
+        geomObjects.Add(new HOraGeomObj(pMod->GetName(),pMod,'M',0));
+    }
+    if (needsGeomInit) {
+      for(Int_t i=0;i<pPar->getNumRefModules();i++) {
+        HGeomCompositeVolume* refMod=pPar->getRefVolume(i);
+        if (refMod && refMod->getNumPoints()==0) {
+          geomObjects.Add(new HOraGeomObj(refMod->GetName(),refMod,'R',0));
+          for(Int_t l=0;l<refMod->getNumComponents();l++) {
+            HGeomVolume* comp=refMod->getComponent(l);
+            TString compName=comp->GetName();
+            if (!compName.IsNull()) {
+              geomObjects.Add(new HOraGeomObj(compName,comp,'C',refMod));
+            }
+          }
+        }
+      }
+    }
+    allFound=readIdealGeometry(&geomObjects,detVers);
+    if (allFound&&needsGeomInit) {
+      allFound=readGeomPoints(&geomObjects);
+    }
+    if (allFound) {
+      allFound=readGeomTransform(&geomObjects);
+      if (allFound) {
+        cout<<pPar->GetName()<<": Geometry initialized from Oracle (version "
+            <<geomVers<<")\n";
+        if (needsAlignmentInit&&alignmentVers>0) {
+          Int_t n=readAlignmentTransform(&geomObjects,alignmentVers);
+          if (n>0) {
+            cout<<pPar->GetName()<<": Alignment for "<<n
+                <<" modules read from Oracle (version "<<alignmentVers<<")\n";
+          }
+        }
+      }
+    }
+    if (allFound) {
+      pPar->setInputVersion(actRunId,inputNumber);
+      pPar->setChanged();
+      pPar->setNotFirstInit();
+    }
+  }
+  return allFound;
+}
+
+
+Int_t HDetParOraIo::getAlignmentVersion(HParOraSet* oraSet,const Char_t* detName) {
+  // Reads the alignment version
+  if (!oraSet||strlen(detName)==0) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int    context;
+    char*  det;
+    int    vers=-1;
+    double since;
+    double until;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  context=(Int_t)oraSet->contextId;
+  det=(Char_t*)detName;
+  EXEC SQL SELECT version,
+                  hdate.to_ansitime(valid_since),
+                  hdate.to_ansitime(valid_until)
+           INTO :vers, :since, :until
+           FROM hgeom.alignment_vers_at_date
+           WHERE detector_name = UPPER(:det) and context_id = :context;
+  oraSet->versDate[0]=since;
+  oraSet->versDate[1]=until;
+  return vers;
+errorfound:
+  pConn->showSqlError("getAlignmentVersion");  
+notfound:
+  oraSet->versDate[0]=-1;
+  oraSet->versDate[1]=-1;
+  return -1;
+}
+
+Int_t HDetParOraIo::getDetectorId(const Char_t* detName) {
+  // Reads the detector id
+  if (strlen(detName)==0) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    char*  dname;
+    int    id;
+  EXEC SQL END DECLARE SECTION;
+  dname=(Char_t*)detName;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;;
+  EXEC SQL SELECT detector_part_id
+           INTO :id 
+           FROM hgeom.detector_part
+           WHERE detector_name = UPPER(:dname);
+    return id;
+errorfound:
+  pConn->showSqlError("getDetectorId");  
+notfound:
+  return -1;    
+}
+
+
+Int_t HDetParOraIo::getGeomVersion(const Char_t* detName,HGeomOraDetVersion* detVers) {
+  // Reads the geometry version for the detector by name
+  if (strlen(detName)==0||!detVers) return -1;
+  detVers->clearVersDate();
+  EXEC SQL BEGIN DECLARE SECTION;
+    char*  dname;
+    int    id;
+    int    vers;
+    double since;
+    double until;
+  EXEC SQL END DECLARE SECTION;
+  dname=(Char_t*)detName;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;;
+  EXEC SQL SELECT det_part_id, geom_vers,
+                  hdate.to_ansitime(valid_since),
+                  hdate.to_ansitime(valid_until)
+           INTO :id, :vers, :since, :until 
+           FROM hgeom.geom_setup_at_histdate
+           WHERE detector_name = :dname;
+  detVers->fill(id,vers,since,until);
+  return vers;
+errorfound:
+  pConn->showSqlError("getGeomVersions(const Char_t*,HGeomOraDetVersion*)");  
+notfound:
+  return -1;
+}
+
+
+Int_t HDetParOraIo::getGeomVersion(Int_t detId,HGeomOraDetVersion* detVers) {
+  // Reads the geometry version for the detector by id
+  if (detId<0||!detVers) return -1;
+  detVers->clearVersDate();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int    id;
+    int    vers;
+    double since;
+    double until;
+  EXEC SQL END DECLARE SECTION;
+  id=detId;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;;
+  EXEC SQL SELECT geom_vers,
+                  hdate.to_ansitime(valid_since),
+                  hdate.to_ansitime(valid_until)
+           INTO :vers, :since, :until 
+           FROM hgeom.geom_setup
+           WHERE det_part_id = :id
+             AND hades_oper.run_query.get_location_id=exp_location_id
+             AND hades_oper.run_query.get_date BETWEEN valid_since AND valid_until
+             AND hades_oper.run_query.get_history_date BETWEEN date_create AND invalid_since;
+  detVers->fill(vers,since,until);
+  return vers;
+errorfound:
+  pConn->showSqlError("getGeomVersions(Int_t,HGeomOraDetVersion*)");  
+notfound:
+  return -1;
+}
+
+
+Bool_t HDetParOraIo::readIdealGeometry(TList* geomObjects,
+                                       HGeomOraDetVersion* detVers) {
+  // Reads the ids for the geometry
+  if (geomObjects==0||detVers==0) return kFALSE;
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* p_name;
+    int   det_id;
+    int   vers;
+    struct {
+      int p_id;
+      varchar p_shape[5];
+      int     p_vol_id;
+      int     p_trans_id;
+    } vol;
+    struct {
+      short p_id_Ind;
+      short p_shape_Ind;
+      short p_vol_id_Ind;
+      short p_trans_id_Ind;
+    } vol_Ind;
+  EXEC SQL END DECLARE SECTION;
+  Bool_t rc=kTRUE;
+  Int_t nTot=0, nVol=0, nTrans=0;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE gvol_cursor CURSOR FOR
+    SELECT object_id, geant3_shape, volume_id, trans_id
+    FROM hgeom.volume_data_at_histdate
+    WHERE det_part_id = :det_id
+      AND object_name = :p_name
+      AND :vers BETWEEN geom_vers_min AND geom_vers_max;
+  det_id=detVers->getDetectorId();
+  vers=detVers->getGeomVersion();
+  if (det_id<0||vers<=0) return kFALSE;
+  TListIter iter(geomObjects);
+  HOraGeomObj* obj;
+  while((obj=(HOraGeomObj*)iter.Next())) {
+    p_name=(Char_t*)obj->GetName();
+    EXEC SQL OPEN gvol_cursor;
+    EXEC SQL FETCH gvol_cursor INTO :vol INDICATOR :vol_Ind;
+    nTot++;
+    if (vol_Ind.p_id_Ind!=-1) obj->objId=vol.p_id;
+    if (obj->volType!='M') {
+      nVol++;
+      obj->volId=vol.p_vol_id;
+      if (vol_Ind.p_shape_Ind!=-1) {
+        vol.p_shape.arr[vol.p_shape.len]='\0';
+        HGeomVolume* node=(HGeomVolume*)(obj->pObj);
+        if (vol.p_shape.len==3) vol.p_shape.arr[3]=' ';
+        vol.p_shape.arr[4]='\0';
+        if (node) node->setShape(((Char_t*)(vol.p_shape.arr)));
+      } else rc=kFALSE;
+    }
+    if (vol_Ind.p_trans_id_Ind!=-1) {
+      obj->transId=vol.p_trans_id;
+      nTrans++;
+    }
+  }
+  if (nTot>0) {
+    EXEC SQL CLOSE gvol_cursor;
+    if (nVol>0) rc=readGeomPoints(geomObjects);
+    if (rc&&nTrans>0)rc=readGeomTransform(geomObjects);
+  } else {
+    rc=kFALSE;
+    Error("readIdealGeometry","No volumes found in database");
+  }
+  return rc;
+errorfound:
+  pConn->showSqlError("readIdealGeometry");
+  if (nTot>0) EXEC SQL CLOSE gvol_cursor;
+  return kFALSE;
+}
+
+
+Bool_t HDetParOraIo::readGeomPoints(TList* geomObjects) {
+  // Reads the volume points
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    struct {
+      int    c[NMAX_POINTS];
+      double x[NMAX_POINTS];
+      double y[NMAX_POINTS];
+      double z[NMAX_POINTS];
+    } p3d;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE points_cursor CURSOR FOR
+    SELECT point_num,x,y,z
+    FROM hgeom.volume_points
+    WHERE volume_id = :id;
+  Bool_t allFound=kTRUE;
+  TListIter iter(geomObjects);
+  HOraGeomObj* obj;
+  while((obj=(HOraGeomObj*)iter.Next())&&allFound) {
+    if (obj->volType!='M') {
+      HGeomVolume* node=(HGeomVolume*)obj->pObj;
+      id=obj->volId;
+      if (id>0) {
+        EXEC SQL OPEN points_cursor;
+        EXEC SQL FETCH points_cursor INTO :p3d;
+        Int_t nPoints=sqlca.sqlerrd[2];
+        if (nPoints<=0) allFound=kFALSE;
+        else {
+          node->createPoints(nPoints);
+          for(Int_t i=0;i<nPoints;i++) {
+            node->setPoint((p3d.c[i]-1),p3d.x[i],p3d.y[i],p3d.z[i]);
+          }
+        }
+      } else allFound=kFALSE;
+    }
+  }
+  EXEC SQL CLOSE points_cursor;
+  return allFound;
+errorfound:
+  EXEC SQL CLOSE points_cursor;
+  pConn->showSqlError("readGeomPoints");
+  return kFALSE;
+}
+
+
+Bool_t HDetParOraIo::readGeomTransform(TList* geomObjects) {
+  // Reads the transformation
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    struct {
+      varchar tref[11];
+      double tx;
+      double ty;
+      double tz;
+      double r11;
+      double r12;
+      double r13;
+      double r21;
+      double r22;
+      double r23;
+      double r31;
+      double r32;
+      double r33;
+    } tr;
+    struct {
+      short tref_Ind;
+      short tx_Ind;
+      short ty_Ind;
+      short tz_Ind;
+      short r11_Ind;
+      short r12_Ind;
+      short r13_Ind;
+      short r21_Ind;
+      short r22_Ind;
+      short r23_Ind;
+      short r31_Ind;
+      short r32_Ind;
+      short r33_Ind;
+    } tr_Ind;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR GOTO errorfound;
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE transform_cursor CURSOR FOR
+    SELECT ref_obj_name,
+           x, y, z,
+           r11, r12, r13, r21, r22, r23, r31, r32, r33
+    FROM hgeom.volume_transform_for_ana
+    WHERE trans_id = :id;
+  Bool_t rc=kTRUE;
+  Double_t t[3];
+  Double_t r[9];
+  TIter next(geomObjects);
+  HOraGeomObj* obj;
+  while ((obj=(HOraGeomObj*)next())&&rc) {
+    id=obj->transId;
+    if (id>0) {
+      EXEC SQL OPEN transform_cursor;
+      EXEC SQL FETCH transform_cursor INTO :tr INDICATOR :tr_Ind;
+      if (tr_Ind.tref_Ind==-1) rc=kFALSE;
+      else {
+        tr.tref.arr[tr.tref.len]='\0';
+        Char_t* refTransName=(Char_t*)(tr.tref.arr);
+        t[0]=tr.tx;
+        t[1]=tr.ty;
+        t[2]=tr.tz;
+        r[0]=tr.r11;
+        r[1]=tr.r12;
+        r[2]=tr.r13;
+        r[3]=tr.r21;
+        r[4]=tr.r22;
+        r[5]=tr.r23;
+        r[6]=tr.r31;
+        r[7]=tr.r32;
+        r[8]=tr.r33;
+        if (obj->volType=='M') {
+          if (strcmp(refTransName,"CAVE")==0) {
+            HModGeomPar* pMod=(HModGeomPar*)(obj->pObj);
+            HGeomTransform& tp=pMod->getLabTransform();
+            tp.setTransVector(t);
+            tp.setRotMatrix(r);
+          } else rc=kFALSE;
+        } else {
+          HGeomVolume* vol=(HGeomVolume*)(obj->pObj);
+          HGeomTransform& tp=vol->getTransform();
+          tp.setTransVector(t);
+          tp.setRotMatrix(r);
+          if (obj->refObj) {
+            const Char_t* mo=obj->refObj->GetName();
+            vol->setMother(mo);
+            if (strcmp(refTransName,mo)!=0) {
+              HGeomTransform& tm=((HGeomVolume*)(obj->refObj))->getTransform();
+              tp.transTo(tm);
+            }
+          } else {
+            if (strcmp(refTransName,"CAVE")==0) vol->setMother("CAVE");
+            else rc=kFALSE;
+          }
+        }
+      }
+    }
+  }
+  EXEC SQL CLOSE transform_cursor;
+  return rc;
+errorfound:
+  EXEC SQL CLOSE transform_cursor;
+  pConn->showSqlError("readGeomTransform");
+  return kFALSE;
+}
+
+
+Int_t HDetParOraIo::readAlignmentTransform(TList* geomObjects,Int_t version) {
+  // Reads the alignment transformation
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    int vers;
+    struct {
+      double r11;
+      double r12;
+      double r13;
+      double r21;
+      double r22;
+      double r23;
+      double r31;
+      double r32;
+      double r33;
+      double t1;
+      double t2;
+      double t3;
+    } tr;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readAlignmentTransform");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE align_cursor CURSOR FOR
+    SELECT r11, r12, r13, r21, r22, r23, r31, r32, r33,
+           px, py, pz
+    FROM hgeom.alignment_data
+    WHERE geom_obj_id = :id and vers_id = :vers;
+  vers=(Int_t)version;
+  TIter next(geomObjects);
+  HOraGeomObj* o;
+  Double_t r[9];
+  Double_t t[3];
+  Int_t n=0;
+  while ((o=(HOraGeomObj*)next())) {
+    if ((o->volType=='M'||o->volType=='T') && (id=(Int_t)o->objId)!=-1) {
+      EXEC SQL OPEN align_cursor;
+      EXEC SQL FETCH align_cursor INTO :tr;
+      if (sqlca.sqlerrd[2]==1) {
+        r[0]=tr.r11;
+        r[1]=tr.r12;
+        r[2]=tr.r13;
+        r[3]=tr.r21;
+        r[4]=tr.r22;
+        r[5]=tr.r23;
+        r[6]=tr.r31;
+        r[7]=tr.r32;
+        r[8]=tr.r33;
+        t[0]=tr.t1;
+        t[1]=tr.t2;
+        t[2]=tr.t3;
+        if (o->volType=='M') {
+          HModGeomPar* pMod=(HModGeomPar*)(o->pObj);
+          HGeomTransform& tp=pMod->getLabTransform();
+          tp.setTransVector(t);
+          tp.setRotMatrix(r);
+        } else {
+          HGeomVolume* vol=(HGeomVolume*)(o->pObj);
+          HGeomTransform& tp=vol->getTransform();
+          tp.setTransVector(t);
+          tp.setRotMatrix(r);
+        }
+        n++;
+      }
+    }
+  }
+  EXEC SQL CLOSE align_cursor;
+  return n;
+}
+
+
+Int_t HDetParOraIo:: writeAlignment(HDetGeomPar* pPar) {
+  // Writes the alignment
+  Int_t version=getAlignmentOutputVersion(pPar,pPar->getParamContext());
+  if (version==-1) return -1;
+  Int_t n=0;
+  Bool_t rc=kTRUE;
+  for(Int_t i=0;i<pPar->getNumModules();i++) {
+    HModGeomPar* pMod=pPar->getModule(i);
+    if (!pMod) continue;
+    if ((rc=writeTransform(version,pMod->GetName(),pMod->getLabTransform()))) n++;
+    else break;
+  }
+  if (rc && n>0) {
+    cout<<pPar->GetName()<<" alignment:  "<<n<<" rows inserted\n";
+    commit();
+  }
+  pPar->setChanged(kFALSE);
+  return version;
+}
+
+
+Int_t HDetParOraIo::getAlignmentOutputVersion(HParSet* pPar,const Char_t* context) {
+  // gets the alignment output version for the actual run
+  // creates a new one, if the version is -1
+  Int_t version=pConn->getAlignmentOutputVersion();
+  if (version==-1) {
+    Int_t contextId=getContextId("HDetGeomPar",context);
+    version=createAlignmentVers(pPar,contextId);
+    pConn->setAlignmentOutputVersion(version);
+  }
+  return version;
+}
+
+
+Int_t HDetParOraIo::createAlignmentVers(HParSet* pPar,Int_t geomContext) {
+  // creates a new version for the alignment parameters
+  // returns the new version
+  if (geomContext==-1) return -1;
+  cout<<"---------------  Storage of alignment  ---------------\n";
+  if (strcmp(getExpLocation(),"VIRTUAL")==0) {
+    Error("createVers(HParSet*)",
+          "No alignment for simulation runs");
+    return -1;
+  }
+  if (strlen(pPar->getAuthor())==0) {
+    Error("createVers(HParSet*)",
+          "author of parameters not defined");
+    return -1;
+  }
+  if (strlen(pPar->getDescription())==0) {
+    Error("createVers(HParSet*)",
+          "descriction of parameters not defined");
+    return -1;
+  }
+  EXEC SQL BEGIN DECLARE SECTION;
+    int   vers=-1;
+    int   context;
+    int   run;
+    char* creator;
+    char* descript;
+  EXEC SQL END DECLARE SECTION;
+  context=geomContext;
+  run=getActRunId();
+  creator=(Char_t*)pPar->getAuthor();
+  descript=(Char_t*)pPar->getDescription();
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    BEGIN
+      SELECT hgeom.ana_par_query.next_version INTO :vers FROM DUAL;
+      INSERT INTO hgeom.alignment_vers
+                 (vers_id, orig_context_id, run_id, author, description)
+          VALUES (:vers, :context, :run, :creator, :descript);
+    END;
+  END-EXEC;
+  cout<<"Oracle version for aligment parameters created:  "<<vers<<endl;
+  return vers;
+not_found:
+  showSqlError("createVers(HParSet*)");
+  rollback();
+  return vers;
+}
+
+
+Bool_t HDetParOraIo:: writeTransform(Int_t version, const Char_t* name, const HGeomTransform& transform) {
+  EXEC SQL BEGIN DECLARE SECTION;
+    int    vers;
+    char   oname[11];
+    double r11;
+    double r12;
+    double r13;
+    double r21;
+    double r22;
+    double r23;
+    double r31;
+    double r32;
+    double r33;
+    double p1;
+    double p2;
+    double p3;
+  EXEC SQL END DECLARE SECTION;
+  vers=(Int_t)version;
+  strcpy(oname,name);
+  const HGeomRotation tr=transform.getRotMatrix();
+  r11=(Double_t)tr(0);
+  r12=(Double_t)tr(1);
+  r13=(Double_t)tr(2);
+  r21=(Double_t)tr(3);
+  r22=(Double_t)tr(4);
+  r23=(Double_t)tr(5);
+  r31=(Double_t)tr(6);
+  r32=(Double_t)tr(7);
+  r33=(Double_t)tr(8);
+  const HGeomVector tv=transform.getTransVector();
+  p1=(Double_t)tv(0);
+  p2=(Double_t)tv(1);
+  p3=(Double_t)tv(2);
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL INSERT INTO hgeom.alignment_data (
+                   geom_obj_id, vers_id,
+                   r11,r12,r13,r21,r22,r23,r31,r32,r33,
+                   px,py,pz)
+           VALUES (hgeom.ana_par_query.geom_obj_id(:oname),:vers,
+                   round(:r11,7),round(:r12,7),round(:r13,7),
+                   round(:r21,7),round(:r22,7),round(:r23,7),
+                   round(:r31,7),round(:r32,7),round(:r33,7),
+                   round(:p1,3),round(:p2,3),round(:p3,3));
+  return kTRUE;
+not_found:
+  showSqlError("writeTransform(...)");
+  rollback();
+  return kFALSE;
+}

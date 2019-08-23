@@ -1,0 +1,109 @@
+void mdcmonhld(Int_t secnum=2, Int_t modnum=1, Int_t evtnum=50, Text_t *dirname, Text_t *filename) {
+  gROOT->Reset();
+  cout << " Sector Number = " <<secnum<<endl;
+  cout << " Module Number = " <<modnum<<endl;
+  cout << " number of events = " <<evtnum<<endl;
+  cout << " dir name = " <<dirname<<endl;
+  cout << " file name = " <<filename<<endl;
+  Hades *myHades=new Hades();
+  gHades->setSplitLevel(2);  
+  //Create detectors and their setup
+  HMdcDetector *mdc=new HMdcDetector;
+  Int_t mod[6][4]=
+  {
+    {0,0,0,0},   // moduledef for sector 1
+    {0,0,0,0},   // moduledef for sector 2
+    {0,0,0,0},   // ...
+    {0,0,0,0},
+    {0,0,0,0},
+    {0,0,0,0}
+  };
+  mod[secnum][modnum]=1;
+  for(Int_t i=0;i<6;i++) mdc->setModules(i, mod[i]);
+  gHades->getSetup()->addDetector(mdc);
+  
+  //Set the runtime database;
+  HRuntimeDb* rtdb=gHades->getRuntimeDb();
+  HRun* run=rtdb->addRun(944451190); 
+  
+  HParAsciiFileIo *inp2=new HParAsciiFileIo;
+  char parFile[100];
+  sprintf(parFile,"%s%s",getenv("HADDIR"),"/macros/Mdc/mdc_lookup_new.txt");
+  inp2->open(parFile,"in");
+  gHades->getRuntimeDb()->setFirstInput(inp2);
+  
+  //Temporal solution
+  HMdcRawStruct *parraw = new HMdcRawStruct;
+  gHades->getRuntimeDb()->addContainer(parraw);
+  if (! ((HParSet*) parraw)->init()) {
+    rtdb->closeFirstInput();
+    rtdb->closeOutput();
+    return 1;
+  }
+  //Temporal solution
+  
+  //Set the split level
+  Int_t splitLevel=2;      //split level of the output tree
+  gHades->setSplitLevel(splitLevel);
+  
+  
+  // Reading from hld file
+  HldFileSource *source=new HldFileSource;
+  //  source->addUnpacker(new HMdcUnpacker(202, FALSE)); 
+  source->addUnpacker(new HMdcUnpacker(201, FALSE)); 
+  source->addUnpacker(new HMdcUnpacker(202, FALSE)); 
+  //  source->addUnpacker(new HMdcUnpacker(513,FALSE));
+  gHades->setDataSource(source);
+  source->setDirectory(dirname); 
+  source->addFile(filename);
+  //  source->setDirectory("/d/hades/mdc/pulser"); 
+  //  source->addFile("puls.hld");
+  
+  // Monitoring
+  HTaskSet* tasks = new HTaskSet("MDC","MDC Monitoring");
+ tasks->connect(new HMdcMonitor("mdcMon","mdcMon", secnum, modnum));
+ tasks->connect((HTask*)NULL,"mdcMon");
+ gHades->getTaskSet("real")->connect(tasks); 
+ 
+  //  HTaskSet* caltask = new HTaskSet("cal task set","cal task set");
+  //  HMdcMonitor * monCal  = new HMdcMonitor("monitor","monitor",Id);
+  //  caltask->connect(monCal);
+  //  caltask->connect((HTask*)NULL,"monCal");
+  
+  
+  //  HTask* end=0;
+  //  Text_t monitor[20]="mdc.mon";
+  //  gHades->getTask()->connect(new HMdcMonitor(monitor,monitor,Id));
+  //  gHades->getTask()->connect(end,monitor);
+  //  gHades->getTaskSet("calibration")->connect(new HMdcMonitor(monitor,monitor,Id));
+  //   gHades->getTaskSet("calibration")->connect(caltask);
+  
+  
+  printf("gHades->init()\n");
+  if (!gHades->init()) printf("Error\n");
+  
+  gHades->getRuntimeDb()->print();
+  
+  
+  //Set output file
+  Int_t compLevel=2;       //compression level of the output file
+  //gHades->setOutputFile("test.root","RECREATE","Test",compLevel); 
+  //  gHades->setOutputFile("pulscal.root","RECREATE","Test",compLevel);
+      gHades->setOutputFile("n99_037.root","RECREATE","Test",compLevel);
+  
+  //Build output tree
+  gHades->makeTree();
+  
+  // Event Loop
+  printf("Event loop\n");
+  gHades->eventLoop(evtnum,510);
+  delete gHades; 
+}
+
+
+
+
+
+
+
+

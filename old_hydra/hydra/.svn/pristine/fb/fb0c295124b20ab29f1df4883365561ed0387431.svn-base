@@ -1,0 +1,572 @@
+// @(#)$Id: hpidtrackfiller.cc,v 1.1 2002-10-30 10:55:33 halo Exp $
+//*-- Author  : Marcin Jaskula 29/06/2002
+//*-- Modified: Marcin Jaskula 09/10/2002
+//              - HPidTrackFillerPar used
+
+//////////////////////////////////////////////////////////////////////////
+//                                                                      //
+// HPidTrackFiller                                                      //
+//                                                                      //
+// A simple track filler of HPidTrackCand category                      //
+//                                                                      //
+//////////////////////////////////////////////////////////////////////////
+
+#include "hpidtrackfiller.h"
+
+#include "hades.h"
+#include "hevent.h"
+#include "hcategory.h"
+#include "hiterator.h"
+#include "hdetector.h"
+#include "hspectrometer.h"
+
+#include "hkicktrack.h"
+#include "hrichhit.h"
+#include "hmdcseg.h"
+#include "hpidtrackcand.h"
+
+#include "kickdef.h"
+#include "richdef.h"
+#include "hmdcdef.h"
+
+#include "hruntimedb.h"
+#include "hpidtrackfillerpar.h"
+
+#include <TMath.h>
+
+// -----------------------------------------------------------------------------
+
+#define DEF_ARRAY_SIZE 10000
+#define SAFE_DELETE(A) { if(A) { delete (A); A = NULL; }}
+
+// -----------------------------------------------------------------------------
+
+ClassImp(HPidTrackFiller)
+
+// -----------------------------------------------------------------------------
+
+HPidTrackFiller::HPidTrackFiller(void)
+    : HReconstructor("PidTrackFiller", "PID track candidate filler")
+{
+// Default constructor.
+
+    setDefault();
+}
+
+// -----------------------------------------------------------------------------
+
+HPidTrackFiller::HPidTrackFiller(Text_t name[], Text_t title[])
+    : HReconstructor(name, title)
+{
+// Default constructor.
+
+    setDefault();
+}
+
+// -----------------------------------------------------------------------------
+
+HPidTrackFiller::~HPidTrackFiller(void)
+{
+// What's this ???
+
+    SAFE_DELETE(pitTrack);
+    SAFE_DELETE(pitMdc);
+    SAFE_DELETE(pitMdcN);
+    SAFE_DELETE(pitRich);
+    SAFE_DELETE(pitCand);
+}
+
+// -----------------------------------------------------------------------------
+
+Bool_t HPidTrackFiller::reinit(void)
+{
+    //return reinit();
+    if(bInitOk == kFALSE)
+        Warning("reinit", "HPidTrackFiller::init() didn't succeede");
+    else
+        bInitOk = kTRUE;
+
+    return kTRUE;
+}
+
+// -----------------------------------------------------------------------------
+
+Bool_t HPidTrackFiller::init(void)
+{
+// get/build all used categories and iterators
+
+HEvent        *pEvent;
+HSpectrometer *pSpect;
+
+    bInitOk = kFALSE;
+
+    if(gHades == NULL)
+    {
+        Error("init", "gHades == NULL");
+        return kFALSE;
+    }
+
+    if((pEvent = gHades->getCurrentEvent()) == NULL)
+    {
+        Error("init", "gHades->getCurrentEvent() == NULL");
+        return kFALSE;
+    }
+
+    if((pSpect = gHades->getSetup()) == NULL)
+    {
+        Error("init", "gHades->getSetup() == NULL");
+        return kFALSE;
+    }
+
+    // delete iterators (if exist)
+    SAFE_DELETE(pitTrack);
+    SAFE_DELETE(pitMdc);
+    SAFE_DELETE(pitMdcN);
+    SAFE_DELETE(pitRich);
+    SAFE_DELETE(pitCand);
+
+    // get HPidTrackFillerPar container
+    if((pParams = (HPidTrackFillerPar *)gHades->getRuntimeDb()
+                    ->getContainer(HPIDTRACKFILLERPAR_NAME)) == NULL)
+    {
+        Error("init", "Cannot get parameters: %s", HPIDTRACKFILLERPAR_NAME);
+        return kFALSE;
+    }
+
+    // get/build catMdcSeg
+    if((pCatMdc = pEvent->getCategory(catMdcSeg)) == NULL)
+    {
+    HDetector *pMdc;
+
+        if((pMdc = pSpect->getDetector("Mdc")) == NULL)
+            Warning("init", "No Mdc detector");
+        else
+        {
+            if((pCatMdc = pMdc->buildCategory(catMdcSeg)) == NULL)
+            {
+                Error("init", "Cannot build catMdcSeg category");
+                return kFALSE;
+            }
+        }
+    }
+
+    // get Mdc iterator
+    if(pCatMdc != NULL)
+    {
+        pitMdc  = (HIterator *)pCatMdc->MakeIterator();
+        pitMdcN = (HIterator *)pCatMdc->MakeIterator();
+    }
+
+    // get/build catRichHit
+    if((pCatRich = pEvent->getCategory(catRichHit)) == NULL)
+    {
+    HDetector *pRich;
+
+        if((pRich = pSpect->getDetector("Rich")) == NULL)
+            Warning("init", "No Rich detector");
+        else
+        {
+            if((pCatRich = pRich->buildCategory(catRichHit)) == NULL)
+            {
+                Error("init", "Cannot build catRichHit category");
+                return kFALSE;
+            }
+        }
+    }
+
+    // get Rich iterator
+    pitRich  = (pCatRich == NULL)
+                    ? NULL : (HIterator *)pCatRich->MakeIterator();
+
+    // get catKickTrack
+    if((pCatTrack = pEvent->getCategory(catKickTrack)) == NULL)
+    {
+        Error("init", "No catKickTrack");
+        return kFALSE;
+    }
+    else
+        pitTrack = (HIterator *)pCatTrack->MakeIterator();
+
+    // get output category
+    if((pCatCand = buildPidTrackCategory()) == NULL)
+    {
+        Error("init", "Cannot build PidTrack Category");
+        return kFALSE;
+    }
+
+    if((pitCand = (HIterator *)pCatCand->MakeIterator()) == NULL)
+    {
+        Error("init", "Cannot make an iterator for PidTrack Category");
+        return kFALSE;
+    }
+
+    bInitOk = kTRUE;
+
+    return kTRUE;
+}
+
+// -----------------------------------------------------------------------------
+
+Int_t HPidTrackFiller::execute(void)
+{
+// find all track candidates and fill the output category
+
+Int_t       iSector;
+Int_t       iR, iRN, i;
+HKickTrack *pTrack;
+HRichHit   *pRing;
+HMdcSeg    *pMdcSeg;
+Float_t     fKickPhi;
+Float_t     fKickTheta;
+Float_t     fMdcPhi;
+Float_t     fMdcTheta;
+Float_t     fSinTheta;
+
+HPidTrackCand *pCand;
+
+    if(bInitOk == kFALSE)
+    {
+        Error("execute", "Class not initialized");
+        return -1;
+    }
+
+    // clear the counters
+    memset(aTrackCounts, 0, sizeof(aTrackCounts));
+    memset(aMetaCounts, 0, sizeof(aMetaCounts));
+    memset(aMdcCounts, 0, sizeof(aMdcCounts));
+    memset(aRichCounts, 0, sizeof(aRichCounts));
+
+    // loop over sectors
+    for(iSector = 0; iSector < MAX_SECTOR; iSector++)
+    {
+        lTrack[0] = iSector;
+        lTrack[1] = 0;
+
+        pitTrack->Reset();
+        pitTrack->gotoLocation(lTrack);
+
+        // loop over tracks
+        while((pTrack = (HKickTrack *)pitTrack->Next()) != NULL)
+        {
+            pCand      = NULL;
+            fKickPhi   = getMdcPhi(iSector, pTrack->getPhi());
+            fKickTheta = getMdcTheta(pTrack->getTheta());
+
+            fSinTheta  = TMath::Sin(pTrack->getTheta());
+
+            // loop over rings (if exist)
+            if(pitRich != NULL)
+            {
+                pitRich->Reset();
+                iR = -1;
+                while((pRing = (HRichHit *) pitRich->Next()) != NULL)
+                {
+                    iR++;
+
+                    if((pRing->getSector() != iSector)
+                            || (fabs(pRing->getTheta() - fKickTheta)
+                                    > pParams->getWindowKickRichTheta())
+                            || (fabs(pRing->getPhi() - fKickPhi) * fSinTheta
+                                    > pParams->getWindowKickRichPhi()))
+                    {
+                        continue;
+                    }
+
+                    if((pCand = getNextSlot(pTrack)) == NULL)
+                        return -2;
+
+                    pCand->setRingId(iR);
+                    aRichCounts[iR]++;
+
+                    // loop over MDC segs
+                    if(pitMdc == NULL)
+                        continue;
+
+                    pitMdc->Reset();
+                    pitMdc->gotoLocation(lTrack);
+
+                    i = -1;
+                    while((pMdcSeg = (HMdcSeg *) pitMdc->Next()) != NULL)
+                    {
+                        i++;
+                        if(i == pCand->getInnerMdcId(0))
+                            continue;
+
+                        fMdcPhi   = getMdcPhi(iSector, pMdcSeg->getPhi());
+                        fMdcTheta = getMdcTheta(pMdcSeg->getTheta());
+
+                        if((fabs(pRing->getTheta() - fMdcTheta)
+                                    > pParams->getWindowMdcRichTheta())
+                            || (fabs(pRing->getPhi() - fMdcPhi) * fSinTheta
+                                    > pParams->getWindowMdcRichPhi()))
+                        {
+                            continue;
+                        }
+
+                        pCand->addInnerMdcId(i);
+                        aMdcCounts[iSector][i]++;
+                    }
+                }
+            }
+
+            // if not candidate has been created - no correlation with RICH
+            if(pCand == NULL)
+                pCand = getNextSlot(pTrack);
+        }
+    }
+
+    // loop over rings not correlated with KickTrack
+    if((pitRich != NULL) && (pitMdc != NULL) && (pitMdcN != NULL))
+    {
+        pitRich->Reset();
+        iR = -1;
+        while((pRing = (HRichHit *) pitRich->Next()) != NULL)
+        {
+            iR++;
+
+            // ring has been already used in the root of the correlation with KT
+            if(aRichCounts[iR] > 0)
+                continue;
+
+            iSector = pRing->getSector();
+            lTrack[0] = iSector;
+            fSinTheta = TMath::Sin(TMath::Pi() * pRing->getTheta() / 180.0);
+
+            // loop over MDC segs
+            pitMdc->Reset();
+            pitMdc->gotoLocation(lTrack);
+            i = -1;
+            while((pMdcSeg = (HMdcSeg *) pitMdc->Next()) != NULL)
+            {
+                i++;
+                fMdcPhi   = getMdcPhi(iSector, pMdcSeg->getPhi());
+                fMdcTheta = getMdcTheta(pMdcSeg->getTheta());
+
+                if((fabs(pRing->getTheta() - fMdcTheta)
+                            > pParams->getWindowMdcRichTheta())
+                    || (fabs(pRing->getPhi() - fMdcPhi) * fSinTheta
+                            > pParams->getWindowMdcRichPhi()))
+                {
+                    continue;
+                }
+
+                // create candidate
+                if((pCand = getNextSlot()) == NULL)
+                    return -2;
+                pCand->setSector(iSector);
+
+                pCand->setRingId(iR);
+                aRichCounts[iR]++;
+
+                pCand->addInnerMdcId(i);
+                aMdcCounts[iSector][i]++;
+
+                // loop over mdc segs around
+                pitMdcN->Reset();
+                pitMdcN->gotoLocation(lTrack);
+
+                iRN = -1;
+                while((pMdcSeg = (HMdcSeg *) pitMdc->Next()) != NULL)
+                {
+                    iRN++;
+                    fMdcPhi   = getMdcPhi(iSector, pMdcSeg->getPhi());
+                    fMdcTheta = getMdcTheta(pMdcSeg->getTheta());
+
+                    if((iRN == i)
+                            || (fabs(pRing->getTheta() - fMdcTheta)
+                                    > pParams->getWindowMdcRichTheta())
+                            || (fabs(pRing->getPhi() - fMdcPhi) * fSinTheta
+                                    > pParams->getWindowMdcRichPhi()))
+                    {
+                        continue;
+                    }
+
+                    pCand->addInnerMdcId(iRN);
+                    aMdcCounts[iSector][iRN]++;
+                }
+            }
+        }
+    }
+
+    calculateCounts();
+
+    return 0;
+}
+
+// -----------------------------------------------------------------------------
+
+Bool_t HPidTrackFiller::finalize(void)
+{
+// empty method
+
+    return kTRUE;
+}
+
+// -----------------------------------------------------------------------------
+
+void HPidTrackFiller::setDefault(void)
+{
+// set default values inside the construtors
+
+    pCatTrack = NULL;
+    pCatMdc   = NULL;
+    pCatRich  = NULL;
+    pCatCand  = NULL;
+
+    lTrack.set(2, 0, 0);
+
+    pitTrack  = NULL;
+    pitMdc    = NULL;
+    pitMdcN   = NULL;
+    pitRich   = NULL;
+    pitCand   = NULL;
+
+    pParams   = NULL;
+
+    bInitOk   = kFALSE;
+}
+
+// -----------------------------------------------------------------------------
+
+HPidTrackCand* HPidTrackFiller::getNextSlot(void)
+{
+// Get next slot from the output category
+
+HPidTrackCand    *pOut = NULL;
+static HLocation  locDummy;
+
+    if(pCatCand == NULL)
+    {
+        Error("getNextSlot", "Output category not set: use init/reinit");
+        return NULL;
+    }
+
+    if((pOut = (HPidTrackCand *) pCatCand->getNewSlot(locDummy)) == NULL)
+    {
+        Error("getNextSlot", "No new slot");
+        return NULL;
+    }
+
+    return new(pOut) HPidTrackCand;
+}
+
+// -----------------------------------------------------------------------------
+
+HPidTrackCand* HPidTrackFiller::getNextSlot(HKickTrack *pTrack)
+{
+// get next slot from the output category and fills it with data from HKickTrack
+
+HPidTrackCand *pOut;
+Short_t        nTrackId;
+
+    if((pOut = getNextSlot()) == NULL)
+        return NULL;
+
+    pOut->setSector(pTrack->getSector());
+
+    nTrackId = pCatTrack->getIndex(pTrack);
+    pOut->setKickTrackId(nTrackId);
+    aTrackCounts[pTrack->getSector()][nTrackId]++;
+
+    pOut->setMetaId(pTrack->getSystem(), pTrack->getOuterHitId());
+    aMetaCounts[pTrack->getSystem()][pTrack->getOuterHitId()]++;
+
+    pOut->addInnerMdcId(pTrack->getSegment());
+    aMdcCounts[pTrack->getSector()][pTrack->getSegment()]++;
+
+    return pOut;
+}
+
+// -----------------------------------------------------------------------------
+
+void HPidTrackFiller::calculateCounts(void)
+{
+// fill all candidates counts using the aXXXCounts filled during
+// execute loops
+
+HPidTrackCand *pCand;
+Int_t          i, iMax;
+Short_t        n;
+
+    pitCand->Reset();
+    while((pCand = (HPidTrackCand *) pitCand->Next()) != NULL)
+    {
+        if(pCand->getKickTrackId() >= 0)
+        {
+            if((n = aTrackCounts[pCand->getSector()][pCand->getKickTrackId()])
+                    <= 0)
+            {
+                Error("calculateCounts", "Track count <= 0");
+            }
+
+            pCand->setKickTrackCount(n);
+
+            if((n = aMetaCounts[pCand->getSystem()][pCand->getMetaId()]) <= 0)
+                Error("calculateCounts", "Meta count <= 0");
+
+            pCand->setMetaCount(n);
+        }
+
+        iMax = pCand->getInnerMdcNumber();
+        for(i = 0; i < iMax; i++)
+        {
+            if((n = aMdcCounts[pCand->getSector()][pCand->getInnerMdcId(i)])
+                    <= 0)
+            {
+                Error("calculateCounts", "Mdc Counts <= 0");
+            }
+
+            pCand->setInnerMdcCount(i, n);
+        }
+
+        if(pCand->getRingId() >= 0)
+        {
+            if((n = aRichCounts[pCand->getRingId()]) <= 0)
+                Error("calculateCounts", "Rich count <= 0");
+
+            pCand->setRingCount(n);
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+
+Float_t getMdcPhi(Int_t iSector, Float_t fPhiMdc)
+{
+// Convert MDC's phi angle to the coordinate system used in other detectors
+
+static Float_t R2D = 180.0 / TMath::Pi();
+Float_t fPhi;
+
+    fPhi = R2D * fPhiMdc;
+
+    switch(iSector)
+    {
+        case 0:
+            break;
+
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+            fPhi += 60.0f * iSector;
+            break;
+
+        default:
+            fPhi -= 60.0f;
+            break;
+    }
+
+    return fPhi;
+}
+
+// -----------------------------------------------------------------------------
+
+Float_t getMdcTheta(Float_t fThetaMdc)
+{
+// Convert MDC's theta angle to the coordinate system used in other detectors
+
+static Float_t R2D = 180.0 / TMath::Pi();
+
+    return fThetaMdc * R2D;
+}

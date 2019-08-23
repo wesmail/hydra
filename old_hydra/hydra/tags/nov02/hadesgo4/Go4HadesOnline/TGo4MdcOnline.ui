@@ -1,0 +1,2694 @@
+<!DOCTYPE UI><UI version="3.0" stdsetdef="1">
+<class>TGo4MdcOnline</class>
+<comment>Mdc Online</comment>
+<author>M Al-Turany</author>
+<widget class="QWidget">
+    <property name="name">
+        <cstring>TGo4MdcOnline</cstring>
+    </property>
+    <property name="geometry">
+        <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>864</width>
+            <height>674</height>
+        </rect>
+    </property>
+    <property name="sizePolicy">
+        <sizepolicy>
+            <hsizetype>5</hsizetype>
+            <vsizetype>5</vsizetype>
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+        </sizepolicy>
+    </property>
+    <property name="paletteBackgroundColor">
+        <color>
+            <red>223</red>
+            <green>223</green>
+            <blue>223</blue>
+        </color>
+    </property>
+    <property name="caption">
+        <string>TGo4MdcOnline</string>
+    </property>
+    <widget class="QLayoutWidget">
+        <property name="name">
+            <cstring>Layout42</cstring>
+        </property>
+        <property name="geometry">
+            <rect>
+                <x>11</x>
+                <y>630</y>
+                <width>842</width>
+                <height>33</height>
+            </rect>
+        </property>
+        <grid>
+            <property name="name">
+                <cstring>unnamed</cstring>
+            </property>
+            <property name="margin">
+                <number>0</number>
+            </property>
+            <property name="spacing">
+                <number>1</number>
+            </property>
+            <widget class="QPushButton" row="0" column="1">
+                <property name="name">
+                    <cstring>PushButton3</cstring>
+                </property>
+                <property name="sizePolicy">
+                    <sizepolicy>
+                        <hsizetype>1</hsizetype>
+                        <vsizetype>0</vsizetype>
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                    </sizepolicy>
+                </property>
+                <property name="text">
+                    <string>Reset</string>
+                </property>
+            </widget>
+            <widget class="QLayoutWidget" row="0" column="0">
+                <property name="name">
+                    <cstring>Layout41</cstring>
+                </property>
+                <hbox>
+                    <property name="name">
+                        <cstring>unnamed</cstring>
+                    </property>
+                    <property name="margin">
+                        <number>0</number>
+                    </property>
+                    <property name="spacing">
+                        <number>1</number>
+                    </property>
+                    <widget class="QLayoutWidget">
+                        <property name="name">
+                            <cstring>Layout3</cstring>
+                        </property>
+                        <hbox>
+                            <property name="name">
+                                <cstring>unnamed</cstring>
+                            </property>
+                            <property name="margin">
+                                <number>0</number>
+                            </property>
+                            <property name="spacing">
+                                <number>1</number>
+                            </property>
+                            <widget class="QLabel">
+                                <property name="name">
+                                    <cstring>TextLabel1</cstring>
+                                </property>
+                                <property name="sizePolicy">
+                                    <sizepolicy>
+                                        <hsizetype>0</hsizetype>
+                                        <vsizetype>5</vsizetype>
+                                        <horstretch>0</horstretch>
+                                        <verstretch>0</verstretch>
+                                    </sizepolicy>
+                                </property>
+                                <property name="font">
+                                    <font>
+                                        <pointsize>10</pointsize>
+                                    </font>
+                                </property>
+                                <property name="text">
+                                    <string>Kevts read</string>
+                                </property>
+                            </widget>
+                            <widget class="QLCDNumber">
+                                <property name="name">
+                                    <cstring>MdcLCDNumber1</cstring>
+                                </property>
+                                <property name="sizePolicy">
+                                    <sizepolicy>
+                                        <hsizetype>0</hsizetype>
+                                        <vsizetype>0</vsizetype>
+                                        <horstretch>0</horstretch>
+                                        <verstretch>0</verstretch>
+                                    </sizepolicy>
+                                </property>
+                                <property name="minimumSize">
+                                    <size>
+                                        <width>40</width>
+                                        <height>20</height>
+                                    </size>
+                                </property>
+                                <property name="maximumSize">
+                                    <size>
+                                        <width>40</width>
+                                        <height>20</height>
+                                    </size>
+                                </property>
+                                <property name="paletteBackgroundColor">
+                                    <color>
+                                        <red>240</red>
+                                        <green>240</green>
+                                        <blue>240</blue>
+                                    </color>
+                                </property>
+                                <property name="backgroundOrigin">
+                                    <enum>WidgetOrigin</enum>
+                                </property>
+                                <property name="segmentStyle">
+                                    <enum>Flat</enum>
+                                </property>
+                            </widget>
+                            <widget class="QLabel">
+                                <property name="name">
+                                    <cstring>TextLabel7</cstring>
+                                </property>
+                                <property name="sizePolicy">
+                                    <sizepolicy>
+                                        <hsizetype>0</hsizetype>
+                                        <vsizetype>5</vsizetype>
+                                        <horstretch>0</horstretch>
+                                        <verstretch>0</verstretch>
+                                    </sizepolicy>
+                                </property>
+                                <property name="font">
+                                    <font>
+                                        <pointsize>10</pointsize>
+                                    </font>
+                                </property>
+                                <property name="text">
+                                    <string>RawMult</string>
+                                </property>
+                            </widget>
+                            <widget class="QLCDNumber">
+                                <property name="name">
+                                    <cstring>MdcLCDNumber2</cstring>
+                                </property>
+                                <property name="sizePolicy">
+                                    <sizepolicy>
+                                        <hsizetype>0</hsizetype>
+                                        <vsizetype>0</vsizetype>
+                                        <horstretch>0</horstretch>
+                                        <verstretch>0</verstretch>
+                                    </sizepolicy>
+                                </property>
+                                <property name="minimumSize">
+                                    <size>
+                                        <width>40</width>
+                                        <height>20</height>
+                                    </size>
+                                </property>
+                                <property name="maximumSize">
+                                    <size>
+                                        <width>40</width>
+                                        <height>20</height>
+                                    </size>
+                                </property>
+                                <property name="paletteForegroundColor">
+                                    <color>
+                                        <red>13</red>
+                                        <green>13</green>
+                                        <blue>13</blue>
+                                    </color>
+                                </property>
+                                <property name="paletteBackgroundColor">
+                                    <color>
+                                        <red>239</red>
+                                        <green>239</green>
+                                        <blue>239</blue>
+                                    </color>
+                                </property>
+                                <property name="segmentStyle">
+                                    <enum>Flat</enum>
+                                </property>
+                            </widget>
+                            <widget class="QLabel">
+                                <property name="name">
+                                    <cstring>TextLabel3</cstring>
+                                </property>
+                                <property name="sizePolicy">
+                                    <sizepolicy>
+                                        <hsizetype>0</hsizetype>
+                                        <vsizetype>0</vsizetype>
+                                        <horstretch>0</horstretch>
+                                        <verstretch>0</verstretch>
+                                    </sizepolicy>
+                                </property>
+                                <property name="minimumSize">
+                                    <size>
+                                        <width>2</width>
+                                        <height>2</height>
+                                    </size>
+                                </property>
+                                <property name="font">
+                                    <font>
+                                        <pointsize>10</pointsize>
+                                    </font>
+                                </property>
+                                <property name="text">
+                                    <string>CalMult</string>
+                                </property>
+                            </widget>
+                            <widget class="QLCDNumber">
+                                <property name="name">
+                                    <cstring>MdcLCDNumber3</cstring>
+                                </property>
+                                <property name="sizePolicy">
+                                    <sizepolicy>
+                                        <hsizetype>0</hsizetype>
+                                        <vsizetype>0</vsizetype>
+                                        <horstretch>0</horstretch>
+                                        <verstretch>0</verstretch>
+                                    </sizepolicy>
+                                </property>
+                                <property name="minimumSize">
+                                    <size>
+                                        <width>40</width>
+                                        <height>20</height>
+                                    </size>
+                                </property>
+                                <property name="maximumSize">
+                                    <size>
+                                        <width>40</width>
+                                        <height>20</height>
+                                    </size>
+                                </property>
+                                <property name="paletteForegroundColor">
+                                    <color>
+                                        <red>10</red>
+                                        <green>12</green>
+                                        <blue>13</blue>
+                                    </color>
+                                </property>
+                                <property name="paletteBackgroundColor">
+                                    <color>
+                                        <red>243</red>
+                                        <green>243</green>
+                                        <blue>243</blue>
+                                    </color>
+                                </property>
+                                <property name="font">
+                                    <font>
+                                        <pointsize>9</pointsize>
+                                    </font>
+                                </property>
+                                <property name="segmentStyle">
+                                    <enum>Flat</enum>
+                                </property>
+                            </widget>
+                        </hbox>
+                    </widget>
+                    <spacer>
+                        <property name="name">
+                            <cstring>Spacer16</cstring>
+                        </property>
+                        <property name="orientation">
+                            <enum>Horizontal</enum>
+                        </property>
+                        <property name="sizeType">
+                            <enum>Expanding</enum>
+                        </property>
+                        <property name="sizeHint">
+                            <size>
+                                <width>43</width>
+                                <height>21</height>
+                            </size>
+                        </property>
+                    </spacer>
+                    <widget class="QLayoutWidget">
+                        <property name="name">
+                            <cstring>Layout38</cstring>
+                        </property>
+                        <hbox>
+                            <property name="name">
+                                <cstring>unnamed</cstring>
+                            </property>
+                            <property name="margin">
+                                <number>0</number>
+                            </property>
+                            <property name="spacing">
+                                <number>1</number>
+                            </property>
+                            <widget class="QLabel">
+                                <property name="name">
+                                    <cstring>TextLabel1_3</cstring>
+                                </property>
+                                <property name="text">
+                                    <string>sector</string>
+                                </property>
+                            </widget>
+                            <widget class="QSpinBox">
+                                <property name="name">
+                                    <cstring>sectorselect</cstring>
+                                </property>
+                                <property name="maxValue">
+                                    <number>5</number>
+                                </property>
+                            </widget>
+                            <widget class="QLabel">
+                                <property name="name">
+                                    <cstring>TextLabel2</cstring>
+                                </property>
+                                <property name="text">
+                                    <string>module</string>
+                                </property>
+                            </widget>
+                            <widget class="QSpinBox">
+                                <property name="name">
+                                    <cstring>moduleselect</cstring>
+                                </property>
+                                <property name="maxValue">
+                                    <number>3</number>
+                                </property>
+                            </widget>
+                        </hbox>
+                    </widget>
+                    <spacer>
+                        <property name="name">
+                            <cstring>Spacer63</cstring>
+                        </property>
+                        <property name="orientation">
+                            <enum>Horizontal</enum>
+                        </property>
+                        <property name="sizeType">
+                            <enum>Expanding</enum>
+                        </property>
+                        <property name="sizeHint">
+                            <size>
+                                <width>192</width>
+                                <height>20</height>
+                            </size>
+                        </property>
+                    </spacer>
+                </hbox>
+            </widget>
+        </grid>
+    </widget>
+    <widget class="QTabWidget">
+        <property name="name">
+            <cstring>TabWidget2</cstring>
+        </property>
+        <property name="geometry">
+            <rect>
+                <x>11</x>
+                <y>34</y>
+                <width>842</width>
+                <height>595</height>
+            </rect>
+        </property>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>main</cstring>
+            </property>
+            <attribute name="title">
+                <string>main</string>
+            </attribute>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>11</number>
+                </property>
+                <property name="spacing">
+                    <number>1</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>Layout25</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>1</number>
+                        </property>
+                        <widget class="TQRootCanvas" row="1" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas5</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas4</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas2</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas6</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas1</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas3</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                    </grid>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>layer</cstring>
+            </property>
+            <attribute name="title">
+                <string>layer</string>
+            </attribute>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>11</number>
+                </property>
+                <property name="spacing">
+                    <number>1</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>Layout25_2</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>1</number>
+                        </property>
+                        <widget class="TQRootCanvas" row="1" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas5_2</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas4_2</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas2_2</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas6_2</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas1_2</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas3_2</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                    </grid>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>tdc</cstring>
+            </property>
+            <attribute name="title">
+                <string>tdc</string>
+            </attribute>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>11</number>
+                </property>
+                <property name="spacing">
+                    <number>1</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>Layout25_3</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>1</number>
+                        </property>
+                        <widget class="TQRootCanvas" row="1" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas5_3</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas4_3</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas2_3</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas6_3</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas1_3</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas3_3</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                    </grid>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>mbo</cstring>
+            </property>
+            <attribute name="title">
+                <string>mbo</string>
+            </attribute>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>-1</number>
+                </property>
+                <property name="spacing">
+                    <number>-1</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>Layout113</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>1</number>
+                        </property>
+                        <widget class="QLayoutWidget" row="1" column="0">
+                            <property name="name">
+                                <cstring>Layout111</cstring>
+                            </property>
+                            <grid>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>1</number>
+                                </property>
+                                <widget class="TQRootCanvas" row="1" column="1">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas4_4</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="0" column="0">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas1_4</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="1" column="0">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas3_4</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="0" column="1">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas2_4</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                            </grid>
+                        </widget>
+                        <widget class="QLayoutWidget" row="0" column="0">
+                            <property name="name">
+                                <cstring>Layout112</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>1</number>
+                                </property>
+                                <widget class="QComboBox">
+                                    <item>
+                                        <property name="text">
+                                            <string>stat</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>trend</string>
+                                        </property>
+                                    </item>
+                                    <property name="name">
+                                        <cstring>mbselect</cstring>
+                                    </property>
+                                </widget>
+                                <spacer>
+                                    <property name="name">
+                                        <cstring>Spacer17_2</cstring>
+                                    </property>
+                                    <property name="orientation">
+                                        <enum>Horizontal</enum>
+                                    </property>
+                                    <property name="sizeType">
+                                        <enum>Expanding</enum>
+                                    </property>
+                                    <property name="sizeHint">
+                                        <size>
+                                            <width>660</width>
+                                            <height>21</height>
+                                        </size>
+                                    </property>
+                                </spacer>
+                            </hbox>
+                        </widget>
+                    </grid>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>times</cstring>
+            </property>
+            <attribute name="title">
+                <string>times</string>
+            </attribute>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>11</number>
+                </property>
+                <property name="spacing">
+                    <number>1</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>Layout289</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>1</number>
+                        </property>
+                        <widget class="QLayoutWidget" row="1" column="0">
+                            <property name="name">
+                                <cstring>Layout69</cstring>
+                            </property>
+                            <grid>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>1</number>
+                                </property>
+                                <widget class="TQRootCanvas" row="1" column="0">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas3_5</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="0" column="0">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas1_5</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="1" column="1">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas4_5</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="0" column="1">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas2_5</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                            </grid>
+                        </widget>
+                        <widget class="QLayoutWidget" row="0" column="0">
+                            <property name="name">
+                                <cstring>Layout288</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>1</number>
+                                </property>
+                                <widget class="QComboBox">
+                                    <item>
+                                        <property name="text">
+                                            <string>time1</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>time2</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>t2-t1</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>select</string>
+                                        </property>
+                                    </item>
+                                    <property name="name">
+                                        <cstring>timesselect</cstring>
+                                    </property>
+                                </widget>
+                                <widget class="QComboBox">
+                                    <item>
+                                        <property name="text">
+                                            <string>raw</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>cal</string>
+                                        </property>
+                                    </item>
+                                    <property name="name">
+                                        <cstring>levelselect</cstring>
+                                    </property>
+                                </widget>
+                                <spacer>
+                                    <property name="name">
+                                        <cstring>Spacer17</cstring>
+                                    </property>
+                                    <property name="orientation">
+                                        <enum>Horizontal</enum>
+                                    </property>
+                                    <property name="sizeType">
+                                        <enum>Expanding</enum>
+                                    </property>
+                                    <property name="sizeHint">
+                                        <size>
+                                            <width>680</width>
+                                            <height>21</height>
+                                        </size>
+                                    </property>
+                                </spacer>
+                            </hbox>
+                        </widget>
+                    </grid>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>calibration</cstring>
+            </property>
+            <attribute name="title">
+                <string>calibration</string>
+            </attribute>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>11</number>
+                </property>
+                <property name="spacing">
+                    <number>1</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>Layout291</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>1</number>
+                        </property>
+                        <widget class="QLayoutWidget" row="0" column="0">
+                            <property name="name">
+                                <cstring>Layout290</cstring>
+                            </property>
+                            <hbox>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>1</number>
+                                </property>
+                                <widget class="QComboBox">
+                                    <item>
+                                        <property name="text">
+                                            <string>tdc</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>time stat mod</string>
+                                        </property>
+                                    </item>
+                                    <property name="name">
+                                        <cstring>calibrationselect</cstring>
+                                    </property>
+                                </widget>
+                                <spacer>
+                                    <property name="name">
+                                        <cstring>Spacer145</cstring>
+                                    </property>
+                                    <property name="orientation">
+                                        <enum>Horizontal</enum>
+                                    </property>
+                                    <property name="sizeType">
+                                        <enum>Expanding</enum>
+                                    </property>
+                                    <property name="sizeHint">
+                                        <size>
+                                            <width>741</width>
+                                            <height>20</height>
+                                        </size>
+                                    </property>
+                                </spacer>
+                            </hbox>
+                        </widget>
+                        <widget class="QLayoutWidget" row="1" column="0">
+                            <property name="name">
+                                <cstring>Layout25_6</cstring>
+                            </property>
+                            <grid>
+                                <property name="name">
+                                    <cstring>unnamed</cstring>
+                                </property>
+                                <property name="margin">
+                                    <number>0</number>
+                                </property>
+                                <property name="spacing">
+                                    <number>1</number>
+                                </property>
+                                <widget class="TQRootCanvas" row="1" column="1">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas5_6</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="1" column="0">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas4_6</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="0" column="1">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas2_6</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="1" column="2">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas6_6</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="0" column="0">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas1_6</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                                <widget class="TQRootCanvas" row="0" column="2">
+                                    <property name="name">
+                                        <cstring>MdcfxQtRootCanvas3_6</cstring>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>200</width>
+                                            <height>200</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                            </grid>
+                        </widget>
+                    </grid>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>tab</cstring>
+            </property>
+            <attribute name="title">
+                <string>Tab</string>
+            </attribute>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>11</number>
+                </property>
+                <property name="spacing">
+                    <number>1</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>Layout25_7</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>1</number>
+                        </property>
+                        <widget class="TQRootCanvas" row="1" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas5_7</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas4_7</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas2_7</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas6_7</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas1_7</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas3_7</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                    </grid>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>tab</cstring>
+            </property>
+            <attribute name="title">
+                <string>Tab</string>
+            </attribute>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>11</number>
+                </property>
+                <property name="spacing">
+                    <number>1</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>Layout25_8</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>1</number>
+                        </property>
+                        <widget class="TQRootCanvas" row="1" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas5_8</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas4_8</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas2_8</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas6_8</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas1_8</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas3_8</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                    </grid>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>tab</cstring>
+            </property>
+            <attribute name="title">
+                <string>Tab</string>
+            </attribute>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>11</number>
+                </property>
+                <property name="spacing">
+                    <number>1</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>Layout25_9</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>1</number>
+                        </property>
+                        <widget class="TQRootCanvas" row="1" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas5_9</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas4_9</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas2_9</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas6_9</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas1_9</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas3_9</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                    </grid>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>tab</cstring>
+            </property>
+            <attribute name="title">
+                <string>Tab</string>
+            </attribute>
+            <grid>
+                <property name="name">
+                    <cstring>unnamed</cstring>
+                </property>
+                <property name="margin">
+                    <number>11</number>
+                </property>
+                <property name="spacing">
+                    <number>1</number>
+                </property>
+                <widget class="QLayoutWidget" row="0" column="0">
+                    <property name="name">
+                        <cstring>Layout25_10</cstring>
+                    </property>
+                    <grid>
+                        <property name="name">
+                            <cstring>unnamed</cstring>
+                        </property>
+                        <property name="margin">
+                            <number>0</number>
+                        </property>
+                        <property name="spacing">
+                            <number>1</number>
+                        </property>
+                        <widget class="TQRootCanvas" row="1" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas5_10</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas4_10</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="1">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas2_10</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="1" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas6_10</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="0">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas1_10</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                        <widget class="TQRootCanvas" row="0" column="2">
+                            <property name="name">
+                                <cstring>MdcfxQtRootCanvas3_10</cstring>
+                            </property>
+                            <property name="minimumSize">
+                                <size>
+                                    <width>200</width>
+                                    <height>200</height>
+                                </size>
+                            </property>
+                        </widget>
+                    </grid>
+                </widget>
+            </grid>
+        </widget>
+        <widget class="QWidget">
+            <property name="name">
+                <cstring>lookup</cstring>
+            </property>
+            <attribute name="title">
+                <string>lookup</string>
+            </attribute>
+            <widget class="QLayoutWidget">
+                <property name="name">
+                    <cstring>Layout53</cstring>
+                </property>
+                <property name="geometry">
+                    <rect>
+                        <x>10</x>
+                        <y>110</y>
+                        <width>410</width>
+                        <height>71</height>
+                    </rect>
+                </property>
+                <grid>
+                    <property name="name">
+                        <cstring>unnamed</cstring>
+                    </property>
+                    <property name="margin">
+                        <number>0</number>
+                    </property>
+                    <property name="spacing">
+                        <number>1</number>
+                    </property>
+                    <widget class="QLabel" row="0" column="0">
+                        <property name="name">
+                            <cstring>TextLabel8_2</cstring>
+                        </property>
+                        <property name="text">
+                            <string>CAL TO RAW</string>
+                        </property>
+                    </widget>
+                    <widget class="QLayoutWidget" row="1" column="0">
+                        <property name="name">
+                            <cstring>Layout52</cstring>
+                        </property>
+                        <hbox>
+                            <property name="name">
+                                <cstring>unnamed</cstring>
+                            </property>
+                            <property name="margin">
+                                <number>0</number>
+                            </property>
+                            <property name="spacing">
+                                <number>1</number>
+                            </property>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout16_2</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel1_4_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>sector</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QSpinBox">
+                                        <property name="name">
+                                            <cstring>calsec</cstring>
+                                        </property>
+                                        <property name="maxValue">
+                                            <number>5</number>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout18_2</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel2_2_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>module</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QSpinBox">
+                                        <property name="name">
+                                            <cstring>calmod</cstring>
+                                        </property>
+                                        <property name="maxValue">
+                                            <number>3</number>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout20_2</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel3_2_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>layer</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QSpinBox">
+                                        <property name="name">
+                                            <cstring>callay</cstring>
+                                        </property>
+                                        <property name="maxValue">
+                                            <number>5</number>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout22_2</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel5_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>cell</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QSpinBox">
+                                        <property name="name">
+                                            <cstring>calcell</cstring>
+                                        </property>
+                                        <property name="maxValue">
+                                            <number>210</number>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout23_2</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel6_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>mbo</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QLineEdit">
+                                        <property name="name">
+                                            <cstring>calmb</cstring>
+                                        </property>
+                                        <property name="readOnly">
+                                            <bool>true</bool>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout39</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel4_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>name</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QLineEdit">
+                                        <property name="name">
+                                            <cstring>calmbname</cstring>
+                                        </property>
+                                        <property name="readOnly">
+                                            <bool>true</bool>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout24_2</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel7_2_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>tdc</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QLineEdit">
+                                        <property name="name">
+                                            <cstring>calt</cstring>
+                                        </property>
+                                        <property name="readOnly">
+                                            <bool>true</bool>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout24_2_2</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel7_2_2_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>nCells</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QLineEdit">
+                                        <property name="name">
+                                            <cstring>calmaxwire</cstring>
+                                        </property>
+                                        <property name="readOnly">
+                                            <bool>true</bool>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                        </hbox>
+                    </widget>
+                </grid>
+            </widget>
+            <widget class="QLayoutWidget">
+                <property name="name">
+                    <cstring>Layout47</cstring>
+                </property>
+                <property name="geometry">
+                    <rect>
+                        <x>10</x>
+                        <y>10</y>
+                        <width>412</width>
+                        <height>71</height>
+                    </rect>
+                </property>
+                <grid>
+                    <property name="name">
+                        <cstring>unnamed</cstring>
+                    </property>
+                    <property name="margin">
+                        <number>0</number>
+                    </property>
+                    <property name="spacing">
+                        <number>1</number>
+                    </property>
+                    <widget class="QLabel" row="0" column="0">
+                        <property name="name">
+                            <cstring>TextLabel8</cstring>
+                        </property>
+                        <property name="text">
+                            <string>RAW TO CAL</string>
+                        </property>
+                    </widget>
+                    <widget class="QLayoutWidget" row="1" column="0">
+                        <property name="name">
+                            <cstring>Layout46</cstring>
+                        </property>
+                        <hbox>
+                            <property name="name">
+                                <cstring>unnamed</cstring>
+                            </property>
+                            <property name="margin">
+                                <number>0</number>
+                            </property>
+                            <property name="spacing">
+                                <number>1</number>
+                            </property>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout16</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel1_4</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>sector</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QSpinBox">
+                                        <property name="name">
+                                            <cstring>rawsec</cstring>
+                                        </property>
+                                        <property name="maxValue">
+                                            <number>5</number>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout18</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel2_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>module</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QSpinBox">
+                                        <property name="name">
+                                            <cstring>rawmod</cstring>
+                                        </property>
+                                        <property name="maxValue">
+                                            <number>3</number>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout20</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel3_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>mbo</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QSpinBox">
+                                        <property name="name">
+                                            <cstring>rawmb</cstring>
+                                        </property>
+                                        <property name="maxValue">
+                                            <number>15</number>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout21</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel4</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>name</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QLineEdit">
+                                        <property name="name">
+                                            <cstring>rawmbname</cstring>
+                                        </property>
+                                        <property name="readOnly">
+                                            <bool>true</bool>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout22</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel5</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>tdc</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QSpinBox">
+                                        <property name="name">
+                                            <cstring>rawt</cstring>
+                                        </property>
+                                        <property name="maxValue">
+                                            <number>95</number>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout23</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel6</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>layer</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QLineEdit">
+                                        <property name="name">
+                                            <cstring>rawlay</cstring>
+                                        </property>
+                                        <property name="readOnly">
+                                            <bool>true</bool>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout24</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel7_2</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>cell</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QLineEdit">
+                                        <property name="name">
+                                            <cstring>rawwire</cstring>
+                                        </property>
+                                        <property name="readOnly">
+                                            <bool>true</bool>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                            <widget class="QLayoutWidget">
+                                <property name="name">
+                                    <cstring>Layout44</cstring>
+                                </property>
+                                <vbox>
+                                    <property name="name">
+                                        <cstring>unnamed</cstring>
+                                    </property>
+                                    <property name="margin">
+                                        <number>0</number>
+                                    </property>
+                                    <property name="spacing">
+                                        <number>1</number>
+                                    </property>
+                                    <widget class="QLabel">
+                                        <property name="name">
+                                            <cstring>TextLabel7_2_3</cstring>
+                                        </property>
+                                        <property name="text">
+                                            <string>nTdcs</string>
+                                        </property>
+                                    </widget>
+                                    <widget class="QLineEdit">
+                                        <property name="name">
+                                            <cstring>rawmaxt</cstring>
+                                        </property>
+                                        <property name="readOnly">
+                                            <bool>true</bool>
+                                        </property>
+                                    </widget>
+                                </vbox>
+                            </widget>
+                        </hbox>
+                    </widget>
+                </grid>
+            </widget>
+        </widget>
+    </widget>
+    <widget class="QLayoutWidget">
+        <property name="name">
+            <cstring>Layout122</cstring>
+        </property>
+        <property name="geometry">
+            <rect>
+                <x>11</x>
+                <y>10</y>
+                <width>846</width>
+                <height>24</height>
+            </rect>
+        </property>
+        <hbox>
+            <property name="name">
+                <cstring>unnamed</cstring>
+            </property>
+            <property name="margin">
+                <number>0</number>
+            </property>
+            <property name="spacing">
+                <number>1</number>
+            </property>
+            <widget class="QLayoutWidget">
+                <property name="name">
+                    <cstring>Layout287</cstring>
+                </property>
+                <hbox>
+                    <property name="name">
+                        <cstring>unnamed</cstring>
+                    </property>
+                    <property name="margin">
+                        <number>0</number>
+                    </property>
+                    <property name="spacing">
+                        <number>1</number>
+                    </property>
+                    <widget class="QLabel">
+                        <property name="name">
+                            <cstring>ColorLabel0</cstring>
+                        </property>
+                        <property name="paletteForegroundColor">
+                            <color>
+                                <red>0</red>
+                                <green>0</green>
+                                <blue>0</blue>
+                            </color>
+                        </property>
+                        <property name="paletteBackgroundColor">
+                            <color>
+                                <red>223</red>
+                                <green>223</green>
+                                <blue>223</blue>
+                            </color>
+                        </property>
+                        <property name="text">
+                            <string>--</string>
+                        </property>
+                    </widget>
+                    <widget class="QLabel">
+                        <property name="name">
+                            <cstring>ColorLabel1</cstring>
+                        </property>
+                        <property name="paletteForegroundColor">
+                            <color>
+                                <red>0</red>
+                                <green>0</green>
+                                <blue>0</blue>
+                            </color>
+                        </property>
+                        <property name="paletteBackgroundColor">
+                            <color>
+                                <red>223</red>
+                                <green>223</green>
+                                <blue>223</blue>
+                            </color>
+                        </property>
+                        <property name="text">
+                            <string>--</string>
+                        </property>
+                    </widget>
+                    <widget class="QLabel">
+                        <property name="name">
+                            <cstring>ColorLabel2</cstring>
+                        </property>
+                        <property name="paletteForegroundColor">
+                            <color>
+                                <red>0</red>
+                                <green>0</green>
+                                <blue>0</blue>
+                            </color>
+                        </property>
+                        <property name="paletteBackgroundColor">
+                            <color>
+                                <red>223</red>
+                                <green>223</green>
+                                <blue>223</blue>
+                            </color>
+                        </property>
+                        <property name="text">
+                            <string>--</string>
+                        </property>
+                    </widget>
+                    <widget class="QLabel">
+                        <property name="name">
+                            <cstring>ColorLabel3</cstring>
+                        </property>
+                        <property name="paletteForegroundColor">
+                            <color>
+                                <red>0</red>
+                                <green>0</green>
+                                <blue>0</blue>
+                            </color>
+                        </property>
+                        <property name="paletteBackgroundColor">
+                            <color>
+                                <red>223</red>
+                                <green>223</green>
+                                <blue>223</blue>
+                            </color>
+                        </property>
+                        <property name="text">
+                            <string>--</string>
+                        </property>
+                    </widget>
+                    <widget class="QLabel">
+                        <property name="name">
+                            <cstring>ColorLabel4</cstring>
+                        </property>
+                        <property name="paletteForegroundColor">
+                            <color>
+                                <red>0</red>
+                                <green>0</green>
+                                <blue>0</blue>
+                            </color>
+                        </property>
+                        <property name="paletteBackgroundColor">
+                            <color>
+                                <red>223</red>
+                                <green>223</green>
+                                <blue>223</blue>
+                            </color>
+                        </property>
+                        <property name="text">
+                            <string>--</string>
+                        </property>
+                    </widget>
+                    <widget class="QLabel">
+                        <property name="name">
+                            <cstring>ColorLabel5</cstring>
+                        </property>
+                        <property name="paletteForegroundColor">
+                            <color>
+                                <red>0</red>
+                                <green>0</green>
+                                <blue>0</blue>
+                            </color>
+                        </property>
+                        <property name="paletteBackgroundColor">
+                            <color>
+                                <red>223</red>
+                                <green>223</green>
+                                <blue>223</blue>
+                            </color>
+                        </property>
+                        <property name="text">
+                            <string>--</string>
+                        </property>
+                    </widget>
+                </hbox>
+            </widget>
+            <spacer>
+                <property name="name">
+                    <cstring>Spacer3</cstring>
+                </property>
+                <property name="orientation">
+                    <enum>Horizontal</enum>
+                </property>
+                <property name="sizeType">
+                    <enum>Expanding</enum>
+                </property>
+                <property name="sizeHint">
+                    <size>
+                        <width>170</width>
+                        <height>20</height>
+                    </size>
+                </property>
+            </spacer>
+            <widget class="QLabel">
+                <property name="name">
+                    <cstring>TextLabel1_2</cstring>
+                </property>
+                <property name="sizePolicy">
+                    <sizepolicy>
+                        <hsizetype>0</hsizetype>
+                        <vsizetype>0</vsizetype>
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                    </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                    <size>
+                        <width>100</width>
+                        <height>8</height>
+                    </size>
+                </property>
+                <property name="paletteForegroundColor">
+                    <color>
+                        <red>0</red>
+                        <green>0</green>
+                        <blue>0</blue>
+                    </color>
+                </property>
+                <property name="paletteBackgroundColor">
+                    <color>
+                        <red>255</red>
+                        <green>255</green>
+                        <blue>127</blue>
+                    </color>
+                </property>
+                <property name="font">
+                    <font>
+                        <pointsize>14</pointsize>
+                        <bold>1</bold>
+                        <underline>1</underline>
+                    </font>
+                </property>
+                <property name="text">
+                    <string>MDC Go4 online</string>
+                </property>
+            </widget>
+            <spacer>
+                <property name="name">
+                    <cstring>Spacer4</cstring>
+                </property>
+                <property name="orientation">
+                    <enum>Horizontal</enum>
+                </property>
+                <property name="sizeType">
+                    <enum>Expanding</enum>
+                </property>
+                <property name="sizeHint">
+                    <size>
+                        <width>360</width>
+                        <height>20</height>
+                    </size>
+                </property>
+            </spacer>
+        </hbox>
+    </widget>
+</widget>
+<customwidgets>
+    <customwidget>
+        <class>TQRootCanvas</class>
+        <header location="global">/u/shower/go4/go41.1/qtroot2.0/tqrootcanvas.h</header>
+        <sizehint>
+            <width>-1</width>
+            <height>-1</height>
+        </sizehint>
+        <container>0</container>
+        <sizepolicy>
+            <hordata>5</hordata>
+            <verdata>5</verdata>
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+        </sizepolicy>
+        <pixmap>image0</pixmap>
+        <signal>destroyed()</signal>
+        <signal>destroyed(QObject*)</signal>
+        <slot access="public" specifier="">deleteLater()</slot>
+        <slot access="public" specifier="">setEnabled(bool)</slot>
+        <slot access="public" specifier="">setDisabled(bool)</slot>
+        <slot access="public" specifier="">setCaption(const QString&amp;)</slot>
+        <slot access="public" specifier="">setIcon(const QPixmap&amp;)</slot>
+        <slot access="public" specifier="">setIconText(const QString&amp;)</slot>
+        <slot access="public" specifier="">setMouseTracking(bool)</slot>
+        <slot access="public" specifier="">setFocus()</slot>
+        <slot access="public" specifier="">clearFocus()</slot>
+        <slot access="public" specifier="">setUpdatesEnabled(bool)</slot>
+        <slot access="public" specifier="">update()</slot>
+        <slot access="public" specifier="">update(int,int,int,int)</slot>
+        <slot access="public" specifier="">update(const QRect&amp;)</slot>
+        <slot access="public" specifier="">repaint()</slot>
+        <slot access="public" specifier="">repaint(bool)</slot>
+        <slot access="public" specifier="">repaint(int,int,int,int)</slot>
+        <slot access="public" specifier="">repaint(int,int,int,int,bool)</slot>
+        <slot access="public" specifier="">repaint(const QRect&amp;)</slot>
+        <slot access="public" specifier="">repaint(const QRect&amp;,bool)</slot>
+        <slot access="public" specifier="">repaint(const QRegion&amp;)</slot>
+        <slot access="public" specifier="">repaint(const QRegion&amp;,bool)</slot>
+        <slot access="public" specifier="">show()</slot>
+        <slot access="public" specifier="">hide()</slot>
+        <slot access="public" specifier="">iconify()</slot>
+        <slot access="public" specifier="">showMinimized()</slot>
+        <slot access="public" specifier="">showMaximized()</slot>
+        <slot access="public" specifier="">showFullScreen()</slot>
+        <slot access="public" specifier="">showNormal()</slot>
+        <slot access="public" specifier="">polish()</slot>
+        <slot access="public" specifier="">constPolish()</slot>
+        <slot access="public" specifier="">close()</slot>
+        <slot access="public" specifier="">raise()</slot>
+        <slot access="public" specifier="">lower()</slot>
+        <slot access="public" specifier="">stackUnder(QWidget*)</slot>
+        <slot access="public" specifier="">move(int,int)</slot>
+        <slot access="public" specifier="">move(const QPoint&amp;)</slot>
+        <slot access="public" specifier="">resize(int,int)</slot>
+        <slot access="public" specifier="">resize(const QSize&amp;)</slot>
+        <slot access="public" specifier="">setGeometry(int,int,int,int)</slot>
+        <slot access="public" specifier="">setGeometry(const QRect&amp;)</slot>
+        <property type="CString">name</property>
+        <property type="Bool">enabled</property>
+        <property type="Rect">geometry</property>
+        <property type="SizePolicy">sizePolicy</property>
+        <property type="Size">minimumSize</property>
+        <property type="Size">maximumSize</property>
+        <property type="Size">sizeIncrement</property>
+        <property type="Size">baseSize</property>
+        <property type="Color">paletteForegroundColor</property>
+        <property type="Color">paletteBackgroundColor</property>
+        <property type="Pixmap">paletteBackgroundPixmap</property>
+        <property type="Palette">palette</property>
+        <property type="BackgroundOrigin">backgroundOrigin</property>
+        <property type="Font">font</property>
+        <property type="Cursor">cursor</property>
+        <property type="String">caption</property>
+        <property type="Pixmap">icon</property>
+        <property type="String">iconText</property>
+        <property type="Bool">mouseTracking</property>
+        <property type="FocusPolicy">focusPolicy</property>
+        <property type="Bool">acceptDrops</property>
+    </customwidget>
+</customwidgets>
+<images>
+    <image name="image0">
+        <data format="XPM.GZ" length="45">789cd3d7528808f055d0d2e72a2e492cc94c5648ce482c52d04a29cdcdad8c8eb5ade6523250004143a55a6b2e0026630c4f</data>
+    </image>
+</images>
+<connections>
+    <connection>
+        <sender>PushButton3</sender>
+        <signal>clicked()</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>Reset()</slot>
+    </connection>
+    <connection>
+        <sender>rawsec</sender>
+        <signal>valueChanged(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>calcRawToCal()</slot>
+    </connection>
+    <connection>
+        <sender>rawmod</sender>
+        <signal>valueChanged(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>calcRawToCal()</slot>
+    </connection>
+    <connection>
+        <sender>rawmb</sender>
+        <signal>valueChanged(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>calcRawToCal()</slot>
+    </connection>
+    <connection>
+        <sender>rawt</sender>
+        <signal>valueChanged(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>calcRawToCal()</slot>
+    </connection>
+    <connection>
+        <sender>calsec</sender>
+        <signal>valueChanged(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>calcCalToRaw()</slot>
+    </connection>
+    <connection>
+        <sender>calmod</sender>
+        <signal>valueChanged(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>calcCalToRaw()</slot>
+    </connection>
+    <connection>
+        <sender>callay</sender>
+        <signal>valueChanged(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>calcCalToRaw()</slot>
+    </connection>
+    <connection>
+        <sender>calcell</sender>
+        <signal>valueChanged(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>calcCalToRaw()</slot>
+    </connection>
+    <connection>
+        <sender>TabWidget2</sender>
+        <signal>currentChanged(QWidget*)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>SetActiveHists()</slot>
+    </connection>
+    <connection>
+        <sender>mbselect</sender>
+        <signal>activated(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>SetActiveHists()</slot>
+    </connection>
+    <connection>
+        <sender>timesselect</sender>
+        <signal>activated(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>SetActiveHists()</slot>
+    </connection>
+    <connection>
+        <sender>levelselect</sender>
+        <signal>activated(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>SetActiveHists()</slot>
+    </connection>
+    <connection>
+        <sender>moduleselect</sender>
+        <signal>valueChanged(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>SetActiveHists()</slot>
+    </connection>
+    <connection>
+        <sender>calibrationselect</sender>
+        <signal>activated(int)</signal>
+        <receiver>TGo4MdcOnline</receiver>
+        <slot>SetActiveHists()</slot>
+    </connection>
+</connections>
+<includes>
+    <include location="local" impldecl="in declaration">hmdcconnectedtdc.h</include>
+    <include location="local" impldecl="in implementation">TColor.h</include>
+    <include location="local" impldecl="in implementation">TSeqCollection.h</include>
+    <include location="local" impldecl="in implementation">TGo4MdcActiveParameter.h</include>
+    <include location="local" impldecl="in implementation">hmdcconnectedtdc.h</include>
+    <include location="local" impldecl="in implementation">TH2.h</include>
+    <include location="local" impldecl="in implementation">TH1.h</include>
+    <include location="local" impldecl="in implementation">TGo4MdcOnlineSlots.h</include>
+    <include location="local" impldecl="in implementation">TGo4GUIRegistry.h</include>
+    <include location="local" impldecl="in implementation">TGo4MdcOnlineStatus.h</include>
+    <include location="local" impldecl="in implementation">TCanvas.h</include>
+    <include location="local" impldecl="in implementation">hmonhist.h</include>
+    <include location="local" impldecl="in implementation">hhistarray.h</include>
+    <include location="local" impldecl="in implementation">htrendhist.h</include>
+    <include location="local" impldecl="in implementation">Go4LockGuard/TGo4LockGuard.h</include>
+    <include location="local" impldecl="in implementation">Go4CommandsAnalysis/TGo4ComSetParameter.h</include>
+    <include location="local" impldecl="in implementation">TGo4ResetParameter.h</include>
+    <include location="local" impldecl="in implementation">TObjArray.h</include>
+    <include location="local" impldecl="in implementation">TROOT.h</include>
+    <include location="local" impldecl="in implementation">TGo4MdcOnline.ui.h</include>
+</includes>
+<forwards>
+    <forward>class HMonHistAddon</forward>
+    <forward>class TH2</forward>
+    <forward>class TGo4GUIRegistry</forward>
+    <forward>class TGo4MdcOnlineStatus</forward>
+    <forward>class TGo4MdcOnlineSlots</forward>
+    <forward>class TH1</forward>
+    <forward>class TNamed</forward>
+</forwards>
+<variables>
+    <variable>QColor* colorsModule[6]</variable>
+    <variable>Int_t colorsMod[6]</variable>
+    <variable>Int_t rawlayer</variable>
+    <variable>Int_t rawmbo</variable>
+    <variable>Int_t rawsector</variable>
+    <variable>TGo4MdcOnlineSlots  *fxTGo4MdcOnlineSlots</variable>
+    <variable>TGo4GUIRegistry    *fxTGo4GUIRegistry</variable>
+    <variable>TGo4MdcOnlineStatus  *fxTGo4MdcOnlineStatus</variable>
+    <variable>Int_t rawmodule</variable>
+    <variable>Int_t rawtdc</variable>
+    <variable>Int_t rawcell</variable>
+    <variable>Int_t colorsSec[6]</variable>
+    <variable>QColor* colorsSector[6]</variable>
+</variables>
+<slots>
+    <slot>init()</slot>
+    <slot>destroy()</slot>
+    <slot>closeEvent( QCloseEvent * ce )</slot>
+    <slot>MdcDisplayLCD1( float t )</slot>
+    <slot>MdcDisplayLCD2( float t )</slot>
+    <slot>MdcDisplayLCD3( float t )</slot>
+    <slot>DrawHis( HMonHistAddon * His )</slot>
+    <slot>Reset()</slot>
+    <slot returnType="HMdcConnectedTdc *">getLookup()</slot>
+    <slot>calcRawToCal()</slot>
+    <slot>calcCalToRaw()</slot>
+    <slot>DrawLayer( HMonHistAddon * His )</slot>
+    <slot>DrawTdc( HMonHistAddon * His )</slot>
+    <slot>DrawTimesCal( HMonHistAddon * His )</slot>
+    <slot>DrawTimesRaw( HMonHistAddon * His )</slot>
+    <slot>DrawMbo( HMonHistAddon * His )</slot>
+    <slot>SetActiveHists()</slot>
+    <slot>DrawColors( Int_t size, Int_t symbol, HMonHistAddon * His )</slot>
+    <slot>DrawCalibration( HMonHistAddon * His )</slot>
+</slots>
+<pixmapinproject/>
+<layoutdefaults spacing="1" margin="11"/>
+</UI>

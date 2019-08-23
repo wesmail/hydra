@@ -1,0 +1,15 @@
+This directory contains three subdirectories:
+1. projectNtuple/
+2. projectHistograms/
+3. makeParams/
+
+which contains programs and/or macros create pid parameters for
+the hard cut lepton analysis. 
+
+The process of the pid parameter generation is divided into 3 steps:
+
+1. projection of HPidTrackCand or HPidTrackCandSim to the control ntuple ( projectNtuple/ )
+2. projection of the ntuple to the set of histograms ( projectHistograms/ )
+3. parameter generation basing on the histograms ( makeParams/ ) 
+
+Each subdirectory contains the README file with howto.

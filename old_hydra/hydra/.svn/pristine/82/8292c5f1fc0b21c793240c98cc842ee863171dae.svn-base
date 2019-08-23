@@ -1,0 +1,6 @@
+#ifndef HKICKCANDIDATEMATRIX_H
+#define HKICKCANDIDATEMATRIX_H
+
+
+
+#endif

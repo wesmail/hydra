@@ -1,0 +1,103 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>Go4_Online_Monitor_HOWTO</title>
+             
+  <meta http-equiv="content-type"
+ content="text/html; charset=ISO-8859-1">
+</head>
+  <body>
+   
+<table cellpadding="2" cellspacing="2" border="1" width="100%">
+    <tbody>
+      <tr>
+        <td valign="top" bgcolor="#ffffcc">&nbsp;&nbsp;&nbsp; #####################
+       <b><font color="#ff0000">INSTALATION</font></b> ########################<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <b>1.</b> Edit the<font color="#3333ff"> hadesgo4login.sh</font>
+ in Hydradir/hadesgo4/Go4HadesClient to<br>
+   &nbsp;&nbsp;&nbsp; select the Hydra version to run with. This script will<br>
+   &nbsp;&nbsp;&nbsp; execute rfioenv.sh ,onlinenv ,oraenv ,go4login and
+hadenv  to<br>
+   &nbsp;&nbsp;&nbsp; set all variables.<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <b>2.</b> Run make in hadesgo4, this will create libHadesGo4.so
+ and<br>
+   &nbsp;&nbsp;&nbsp; copy it to the Hydra lib directory. This library will
+ be needed<br>
+   &nbsp;&nbsp;&nbsp; by the Go4 part of the online monitor.<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <font color="#3333ff">Hydradir/lib/libHadesGo4.so</font><br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <b>3. </b>Go to Hydradir/hadesgo4/Go4HadesOnline and
+ open the project<br>
+   &nbsp;&nbsp;&nbsp; file with the QT designer and save the file (<font
+ color="#ff0000">This procedure has<br>
+   &nbsp;&nbsp;&nbsp; only to be done the first time, because Qt designer 
+is writing<br>
+   &nbsp;&nbsp;&nbsp; the current directory to the Makefile.qt which will 
+be used to<br>
+   &nbsp;&nbsp;&nbsp; create the libraries </font>). Make the lib with option
+ all.<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <font color="#009900">cd Hydradir/hadesgo4/Go4HadesOnline<br>
+   &nbsp;&nbsp;&nbsp; designer Go4QtHadesOnline.pro &amp;<br>
+   &nbsp;&nbsp;&nbsp; make all</font><br>
+   <br>
+   &nbsp;&nbsp;&nbsp; QT make will generate from the project file the GUIs
+ using the<br>
+   &nbsp;&nbsp;&nbsp; .ui and .ui.h files to build C++ classes for the GUI
+ and pack them<br>
+   &nbsp;&nbsp;&nbsp; into<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <font color="#3333ff">Hydradir/hadesgo4/Go4Library/libGo4HadesOnline.so<br>
+   &nbsp;&nbsp;&nbsp; Hydradir/hadesgo4/Go4Library/libGo4QtHadesOnline.so</font><br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <b>4.</b> Go to Hydradir/hadesgo4/Go4UserGUI and open
+ the project<br>
+   &nbsp;&nbsp;&nbsp; file with the QT designer and save the file (<font
+ color="#ff0000">This procedure has<br>
+   &nbsp;&nbsp;&nbsp; only to be done the first time, because Qt designer 
+is writing<br>
+   &nbsp;&nbsp;&nbsp; the current directory to the Makefile</font> ).qt which
+ will be used to<br>
+   &nbsp;&nbsp;&nbsp; create the libraries. Make the lib with option all.<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <font color="#009900">cd Hydradir/hadesgo4/Go4UserGUI<br>
+   &nbsp;&nbsp;&nbsp; designer Go4UserGui.pro &amp;<br>
+   &nbsp;&nbsp;&nbsp; make all</font><br>
+   <br>
+   &nbsp;&nbsp;&nbsp; QT make will generate from the project file the GUIs
+ using the<br>
+   &nbsp;&nbsp;&nbsp; .ui and .ui.h files to build C++ classes for the GUI
+ and pack them<br>
+   &nbsp;&nbsp;&nbsp; into<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <font color="#3333ff">Hydradir/hadesgo4/Go4Library/libGo4UserGUI.so</font><br>
+   <br>
+   &nbsp;&nbsp;&nbsp; This is the small lib which contains the Hades Monitor
+ button, which will<br>
+   &nbsp;&nbsp;&nbsp; pop up the Main Panel of the Hades Monitor<br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <b>5.</b> Go to Hydradir/hadesgo4/Go4HadesClient and
+ run Make with option all<br>
+   <br>
+   <br>
+   &nbsp;&nbsp;&nbsp;<font color="#009900"> cd Hydradir/hadesgo4/Go4HadesClient<br>
+   &nbsp;&nbsp;&nbsp; make all</font><br>
+   <br>
+   &nbsp;&nbsp;&nbsp; This will create<br>
+   &nbsp;&nbsp;&nbsp; <font color="#3333ff">Hydradir/hadesgo4/Go4Library/libGo4HadesClient.so<br>
+   &nbsp;&nbsp;&nbsp; Hydradir/hadesgo4/Go4HadesClient/MainGo4HadesClient</font><br>
+   <br>
+   <br>
+   &nbsp;&nbsp;&nbsp; <b>6.</b> You are done.<br>
+   <br>
+        </td>
+      </tr>
+       
+  </tbody>  
+</table>
+  <br>
+</body>
+</html>

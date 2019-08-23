@@ -1,0 +1,2173 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Last modified : 15/09/2000 by T. Eberl
+//*-- Created : 02/05/2000 by I. Koenig
+
+//////////////////////////////////////////////////////////////////////////////
+// HRichParOraIo
+//
+// Interface class to database Oracle for input/output of parameters needed
+// by the Rich
+// (uses the Oracle C/C++ precompiler)
+//
+//////////////////////////////////////////////////////////////////////////////
+
+#include "hrichparoraio.h"
+#include "hades.h"
+#include "hruntimedb.h"
+#include "hrun.h"
+#include "hspectrometer.h"
+#include "hdetector.h"
+#include "hrichdetector.h"
+#include "hrichcalpar.h"
+#include "hrichanalysispar.h"
+#include "hrichdigitisationpar.h"
+#include "hrichgeometrypar.h"
+#include "hrichframe.h"
+#include "hrichwire.h"
+#include "hrichpad.h"
+#include <iostream.h>
+#include <unistd.h>
+//#include <stdlib.h> // for malloc
+
+#define SQLCA_STORAGE_CLASS extern
+#define ORACA_STORAGE_CLASS extern
+
+// Oracle communication area
+#include <oraca.h>
+// SQL Communications Area
+/* Include the SQL Communications Area, a structure through
+ * which ORACLE makes runtime status information such as error
+ * codes, warning flags, and diagnostic text available to the
+ * program.
+ */
+#include <sqlca.h>
+
+ClassImp(HRichParOraIo)
+
+#define RICH_MAXSEC 6
+#define RICH_MAXPADS_READOUT 4800
+#define RICH_MAXPADS_DIGI 4894
+#define RICH_MAXPADS_DESIGN 4850
+#define RICH_MAXFRAME_CNRS 7
+#define RICH_MAXPAD_DIGI_CNRS 4
+#define RICH_MAXWIRES 182
+HRichParOraIo::HRichParOraIo(HOraConn* pC) : HDetParOraIo(pC) {
+  // constructor
+  // sets the name of the I/O class "HRichParIo"
+  // gets the pointer to the connection class
+  fName="HRichParIo";
+  pVersId=-1;
+  initModules=new TArrayI(RICH_MAXSEC);
+  richIds=0;
+  calparDate=0;
+  anaparDate=0;
+  calparVersions=0;
+  resetComments();
+}
+//************************************************************************
+
+HRichParOraIo::~HRichParOraIo() {
+  // destructor
+  if (initModules) delete initModules;
+  if (richIds) delete richIds;
+  if (calparDate) delete [] calparDate;
+  if (anaparDate) delete [] anaparDate;
+  if (digiparDate) delete [] digiparDate;
+  if (calparVersions) delete calparVersions;
+}
+//************************************************************************
+
+Bool_t HRichParOraIo::init(HParSet* pPar,Int_t* set) {
+  // calls special read-function for each parameter container
+  if (startIo()==-1) return kFALSE; // no modules found
+  const Text_t* name=pPar->GetName();
+  if (strcmp(name,"RichCalPar")==0) return read(((HRichCalPar*)pPar),set);
+  if (strcmp(name,"RichAnalysisParameters")==0) return read(((HRichAnalysisPar*)pPar),set);
+  if (strcmp(name,"RichDigitisationParameters")==0) return read(((HRichDigitisationPar*)pPar),set);
+  if (strcmp(name,"RichGeometryParameters")==0) return read(((HRichGeometryPar*)pPar),set);
+  cout<<"initialization of "<<name<<" not possible from Oracle!"<<endl;
+  return kFALSE;
+}
+//************************************************************************
+
+Int_t HRichParOraIo::write(HParSet* pPar) {
+  // calls the appropriate write function for the container
+  if (startIo()==-1) return kFALSE; // no modules found
+  const Text_t* name=pPar->GetName();
+  if (!strcmp(name,"RichCalPar"))
+     return writePar((HRichCalPar*)pPar);
+  if (!strcmp(name,"RichAnalysisParameters"))
+     return writePar((HRichAnalysisPar*)pPar);
+  if (!strcmp(name,"RichDigitisationParameters"))
+     return writePar((HRichDigitisationPar*)pPar);
+  if (!strcmp(name,"RichGeometryParameters"))
+     return writePar((HRichGeometryPar*)pPar);
+  return 0;
+}
+//************************************************************************
+
+Int_t HRichParOraIo::startIo(void) {
+  if ((runStart=getRunStart())==-1) return -1;
+  if (richIds==0) {
+    richIds=new TArrayI(RICH_MAXSEC);
+    readIds();
+  }
+  return pVersId;  // is -1 if no modules found
+}
+//************************************************************************
+
+Int_t HRichParOraIo::readIds() {
+  // reads the id numbers of all modules defined for actual run
+  // and stores them in array richIds
+  // returns the run id if at least one module can be found
+  // returns -1 if nothing is found
+  for(Int_t i=0;i<RICH_MAXSEC;i++) richIds->AddAt(0,i);
+  pVersId=-1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int sec[RICH_MAXSEC];
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readIds()");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT sector INTO :sec FROM rich_anatest.setup_at_run;
+  Int_t nMods=sqlca.sqlerrd[2]; // number of rows returned by select 
+  HRichDetector* det=(HRichDetector*)(gHades->getSetup()->getDetector("Rich"));
+  for(Int_t i=0;i<nMods;i++) {
+    if (det->getModule((sec[i]-1),0)) richIds->AddAt(sec[i],(sec[i]-1));
+  }
+  //  printIds();
+  if (nMods>0) pVersId=getActRunId();
+  return pVersId;
+}
+//************************************************************************
+
+void HRichParOraIo::printIds() {
+  // prints the id numbers of all RICH sectors
+  if (richIds) {
+    cout<<"RICH sectors:";
+    for(Int_t i=0;i<RICH_MAXSEC;i++) cout<<" "<<richIds->At(i);
+    cout<<'\n';
+  }
+}
+//************************************************************************
+
+Int_t HRichParOraIo::getCalparVersion(Int_t version) {
+  // reads the newest version number for the calibration parameters
+  // valid for the current event file
+  if (!calparVersions) calparVersions=new TArrayI(richIds->GetSize());
+  if (calparDate) {
+     if (version!=-1 && runStart>=calparDate[0] && runStart<=calparDate[1])
+      return version;
+  }
+  else calparDate=new Double_t[2];
+  clearVersDate(calparDate);
+  EXEC SQL BEGIN DECLARE SECTION;
+    struct {
+      int sec[RICH_MAXSEC];
+      int vers[RICH_MAXSEC];
+      double since[RICH_MAXSEC];
+      double until[RICH_MAXSEC];
+    } cal;
+    struct {
+      short sec[RICH_MAXSEC];
+      short vers[RICH_MAXSEC];
+      short since[RICH_MAXSEC];
+      short until[RICH_MAXSEC];
+    } cal_Ind;
+  EXEC SQL END DECLARE SECTION;
+  Int_t nSec=0;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getCalparVersion(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT sector, vers, hdate.to_ansitime(valid_since),
+                                hdate.to_ansitime(valid_until) 
+           INTO :cal INDICATOR :cal_Ind
+           FROM rich_anatest.cal_vers_at_date;
+  nSec=sqlca.sqlerrd[2];
+  for(Int_t i=0;i<nSec;i++) {
+    Int_t s=cal.sec[i]-1;
+    if (richIds->At(s)>0) {
+      calparVersions->AddAt(cal.vers[i],s);
+      if (i==0) {
+        calparDate[0]=cal.since[i];
+        calparDate[1]=cal.until[i];
+      } else {
+        calparDate[0]=(cal.since[i]>calparDate[0]) ? cal.since[i]
+                                                      : calparDate[0];
+        calparDate[1]=(cal.until[i]<calparDate[1]) ? cal.until[i]
+                                                      : calparDate[1];
+      }
+    }
+  }
+  //  cout<<"version range: "<<calparDate[0]<<" - "<<calparDate[1]<<endl;
+  if (calparDate[0]>0) return getActRunId();
+  return -1;
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::read(HRichCalPar* pPar, Int_t* set) {
+  // reads the calibration parameters and fill the RichCalPar container
+  Int_t version=getPredefVersion(pPar);
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (version==-1) version=getCalparVersion(contVers);
+  if (version==-1) return kFALSE;
+  if (contVers==version) return kTRUE;
+  pPar->setInputVersion(version,inputNumber);
+  EXEC SQL BEGIN DECLARE SECTION;
+    int sec;
+    int c_vers;
+    struct {
+	int p_col[RICH_MAXPADS_READOUT];
+	int p_row[RICH_MAXPADS_READOUT];
+	float s[RICH_MAXPADS_READOUT];//slope
+	float o[RICH_MAXPADS_READOUT];//offset
+	float si[RICH_MAXPADS_READOUT];//sigma
+    } cal;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichCalPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE cal_cur CURSOR FOR
+    SELECT pad_col, pad_row, slope, offset, sigma
+      FROM rich_anatest.cal_par_all
+      WHERE sector = :sec
+        AND vers =:c_vers;
+  Bool_t allFound=kTRUE;
+  initModules->Reset();
+  HLocation loc;
+  loc.setNIndex(3);
+  HRichCalParCell* pCell=0;
+  for(Int_t i=0;i<RICH_MAXSEC;i++) {
+    if (set[i]) {
+      loc[0] = i;
+      sec=richIds->At(i);
+      c_vers=calparVersions->At((sec-1));
+      if (sec>0 && c_vers>0) {
+        EXEC SQL OPEN cal_cur;
+        EXEC SQL FETCH cal_cur INTO :cal;
+        Int_t nPads=sqlca.sqlerrd[2];
+        for(Int_t k=0;k<nPads;k++) {
+          loc[1] = cal.p_row[k];   // y
+          loc[2] = cal.p_col[k];   // x
+          pCell = (HRichCalParCell*)pPar->getSlot(loc);
+          if (pCell) {
+            pCell = new(pCell) HRichCalParCell;
+            pCell->setParams(cal.s[k],cal.o[k],cal.si[k]);
+          }  
+          else {
+            Error("read(HRichCalPar*,Int_t*)",
+                  "slot not found:  %i %i %i",loc[0],loc[1],loc[2]);
+            EXEC SQL CLOSE cal_cur;
+            return kFALSE;
+          }
+        }
+        if (nPads>0) {
+          set[i]=0;
+          initModules->AddAt(i+1,i);
+        }
+        else allFound=kFALSE;
+      }
+      else allFound=kFALSE;
+    }
+  }
+  EXEC SQL CLOSE cal_cur;
+  pPar->setChanged();
+  printInfo("RichCalPar: sector(s) initialized from Oracle: ");
+  return allFound;
+};
+//************************************************************************
+
+Int_t HRichParOraIo::getAnaparVersion(Int_t version) {
+  // reads the latest version number for the analysis parameters
+  // valid for the current event file
+  if (anaparDate) {
+     if (version!=-1 && runStart>=anaparDate[0] && runStart<=anaparDate[1])
+      return version;
+  }
+  else anaparDate=new Double_t[2];
+  clearVersDate(anaparDate);
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+    double since;
+    double until;
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getAnaparVersion(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL SELECT vers, hdate.to_ansitime(valid_since),
+                                hdate.to_ansitime(valid_until)
+           INTO :vers, :since, :until
+           FROM rich_anatest.ana_vers_at_date;
+  anaparDate[0]=since;
+  anaparDate[1]=until;
+  //  cout<<"version: "<<vers<<
+  //        "    date range: "<<anaparDate[0]<<" - "<<anaparDate[1]<<endl;
+  if (anaparDate[0]>0) return vers;
+not_found:
+  return -1;
+};
+//************************************************************************
+
+Int_t HRichParOraIo::getDigiparVersion(Int_t version) {
+  // reads the latest version number for the digitisation parameters
+  // valid for the current event file
+  if (digiparDate) {
+     if (version !=-1 && runStart>=digiparDate[0] && runStart<=digiparDate[1])
+      return version;
+     }
+     else digiparDate=new Double_t[2];
+     clearVersDate(digiparDate);
+     EXEC SQL BEGIN DECLARE SECTION;
+       int vers;
+       double since;
+       double until;
+     EXEC SQL END DECLARE SECTION;
+     EXEC SQL WHENEVER SQLERROR DO showSqlError("getDigiparVersion(Int_t)");
+     EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+     EXEC SQL SELECT vers, hdate.to_ansitime(valid_since),
+                                hdate.to_ansitime(valid_until)
+              INTO :vers, :since, :until
+              FROM rich_anatest.digi_vers_at_date;
+     digiparDate[0]=since;
+     digiparDate[1]=until;
+     //  cout<<"version: "<<vers<<
+     //        "    date range: "<<digiparDate[0]<<" - "<<digiparDate[1]<<endl;
+     if (digiparDate[0]>0) return vers;
+not_found:
+  return -1;
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::read(HRichAnalysisPar* pPar, Int_t* set) {
+  // reads the analysis parameters and fill the RichAnalysisPar container
+  Int_t version=getPredefVersion(pPar);
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (version==-1) version=getAnaparVersion(contVers);
+  if (version==-1) return kFALSE;
+  if (contVers==version) return kTRUE;
+  pPar->setInputVersion(version,inputNumber);
+  pPar->clear();
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+    int c_sig_thr, c_ring_rad, c_ring_rad_err;
+    int c_cl_pad_stat,c_cl_pad_border,c_cl_pad_l_thr;
+    int c_cl_hi_pls_stat,cl_hi_pls_brd,c_cl_hi_pls_u_thr;
+    int c_l_pad_stat,c_l_pad_dist;
+    int c_ring_t_dens_stat;
+    float c_pad_dens_thr,c_surf_area;
+    int c_dyn_amp_thr_stat;
+    float c_min_amp_frct;
+    float c_form_para_1,c_form_para_2,c_form_para_3;
+    int c_pad_ratio_stat;
+    float c_pad_in_out_ratio;
+    int c_t_ring_asym_stat,c_sup_algo_nr;
+    int c_ring_fitpatmat_stat,c_min_fit_qual,c_min_fit_dist;
+    int c_num_ring_fit;
+    int c_ring_houtrans_stat,c_min_houtrans_qual,c_min_houtrans_dist;
+    int c_num_ring_houtrans;
+    int c_ring_mask_vers_id,c_ring_pat_vers_id; 
+    int c_ring_mask_size, c_ring_pat_size;
+  EXEC SQL END DECLARE SECTION;
+  vers=version;
+  Int_t r_ring_mask_vers_id = 0;
+  Int_t r_ring_pat_vers_id = 0;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichAnalysisPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL SELECT SIG_THR,RING_RAD,RING_RAD_ERR,
+                  CL_PAD_STAT,CL_PAD_BRD,CL_PAD_L_THR,
+                  CL_HI_PLS_STAT,CL_HI_PLS_BRD,CL_HI_PLS_U_THR,
+                  L_PAD_STAT,L_PAD_DIST,
+                  RING_T_DENS_STAT,PAD_DENS_THR,
+                  SURF_AREA,
+                  DYN_AMP_THR_STAT,MIN_AMP_FRCT,
+                  FORM_PARA_1,FORM_PARA_2,FORM_PARA_3,
+                  PAD_RATIO_STAT,PAD_IN_OUT_RATIO,
+                  T_RING_ASYM_STAT,
+                  SUP_ALGO_NR,
+                  RING_FITPATMAT_STAT,MIN_FIT_QUAL,MIN_FIT_DIST,
+                  NUM_RING_FIT,
+                  RING_HOUTRANS_STAT,MIN_HOUTRANS_QUAL,
+                  MIN_HOUTRANS_DIST,NUM_RING_HOUTRANS,
+                  a.RING_MASK_VERS_ID,
+                  a.RING_PAT_VERS_ID,
+                  p.MATRIX_SIZE, m.MATRIX_SIZE
+           INTO :c_sig_thr,:c_ring_rad,:c_ring_rad_err,
+                :c_cl_pad_stat,:c_cl_pad_border,:c_cl_pad_l_thr,
+                :c_cl_hi_pls_stat,:cl_hi_pls_brd,:c_cl_hi_pls_u_thr,
+                :c_l_pad_stat,:c_l_pad_dist,
+                :c_ring_t_dens_stat,
+                :c_pad_dens_thr,:c_surf_area,
+                :c_dyn_amp_thr_stat,
+                :c_min_amp_frct,
+                :c_form_para_1,:c_form_para_2,:c_form_para_3,
+                :c_pad_ratio_stat,
+                :c_pad_in_out_ratio,
+                :c_t_ring_asym_stat,:c_sup_algo_nr,
+                :c_ring_fitpatmat_stat,:c_min_fit_qual,
+                :c_min_fit_dist,
+                :c_num_ring_fit,
+                :c_ring_houtrans_stat,:c_min_houtrans_qual,
+                :c_min_houtrans_dist,
+                :c_num_ring_houtrans,
+                :c_ring_mask_vers_id,:c_ring_pat_vers_id,
+                :c_ring_pat_size,:c_ring_mask_size
+           FROM rich_anatest.ana_par a,rich_anatest.ring_pat_vers p,
+                rich_anatest.ring_mask_vers m
+           WHERE ana_par_vers_id = :vers AND 
+                 a.RING_PAT_VERS_ID = p.RING_PAT_VERS_ID AND
+                 a.RING_MASK_VERS_ID = m.RING_MASK_VERS_ID;
+  pPar->iCutOffThresheold = c_sig_thr;
+  pPar->iRingRadius = c_ring_rad;
+  pPar->iRingRadiusError = c_ring_rad_err;
+  pPar->isActiveCleanAlonePad = c_cl_pad_stat; 
+  pPar->iCleanAlonePadBorder = c_cl_pad_border;
+  pPar->iCleanAlonePadLowerThreshold = c_cl_pad_l_thr;
+  pPar->isActiveCleanHighPulse = c_cl_hi_pls_stat;
+  pPar->iCleanHighPulseBorder = cl_hi_pls_brd;
+  pPar->iCleanHighPulseUpperThreshold = c_cl_hi_pls_u_thr;
+  pPar->isActiveLabelPads = c_l_pad_stat;
+  pPar->iLabeledPadsDistance = c_l_pad_dist;
+  pPar->isActiveTestDensity = c_ring_t_dens_stat;
+  pPar->fThresholdDensity = c_pad_dens_thr;
+  pPar->fSurfaceArea = c_surf_area;
+  pPar->isActiveDynamicThrAmplitude = c_dyn_amp_thr_stat;
+  pPar->fLowerAmplFactor = c_min_amp_frct;
+  pPar->fFormulaParam1 = c_form_para_1;
+  pPar->fFormulaParam2 = c_form_para_2;
+  pPar->fFormulaParam3 = c_form_para_3;
+  pPar->isActiveFiredRingPadsRatio = c_pad_ratio_stat;
+  pPar->fFiredRingPadsRatio = c_pad_in_out_ratio;
+  pPar->isActiveTestAsymmetry = c_t_ring_asym_stat;
+  pPar->iSuperiorAlgorithmID = c_sup_algo_nr;
+  pPar->isActiveRingFindFitMatrix = c_ring_fitpatmat_stat;
+  pPar->iMinimalFitMatrixRingQuality = c_min_fit_qual;
+  pPar->iMinimalFitMatrixRingDistance = c_min_fit_dist;
+  pPar->iHowManyFitMatrixRings = c_num_ring_fit;
+  pPar->isActiveRingHoughTransf = c_ring_houtrans_stat;
+  pPar->iMinimalHoughTransfRingQuality = c_min_houtrans_qual;
+  pPar->iMinimalHoughTransfRingDistance = c_min_houtrans_dist;
+  pPar->iHowManyHoughTransfRings = c_num_ring_houtrans;
+  pPar->iRingMaskSize  = c_ring_mask_size;
+  pPar->iRingMatrixSize  = c_ring_pat_size;
+  r_ring_mask_vers_id = c_ring_mask_vers_id;
+  r_ring_pat_vers_id = c_ring_pat_vers_id;
+  // cout<<"Mask id: "<<r_ring_mask_vers_id<<"  Pat id: "<<r_ring_pat_vers_id<<endl;
+  if ( !readMaskMatrix   ( &(pPar->iRingMask)  ,r_ring_mask_vers_id,
+                             pPar->iRingMaskSize)                    || 
+       !readPatternMatrix( &(pPar->iRingMatrix),r_ring_pat_vers_id ,
+                             pPar->iRingMatrixSize) 
+     ) return kFALSE;
+  pPar->setChanged();
+  cout<<"RichAnalysisPar initialized from Oracle"<<'\n';
+  //  cout<<"Values : "<<endl;
+  //  cout<<"CutOffThresheold :"<<pPar->iCutOffThresheold<<endl;
+  //  cout<<"RingRadius :"<<pPar->iRingRadius<<endl;
+  //  cout<<"RingRadiusError :"<<pPar->iRingRadiusError<<endl;
+  return kTRUE;
+not_found:
+  return kFALSE;   
+} 
+//************************************************************************
+
+Bool_t HRichParOraIo::read(HRichDigitisationPar* pPar, Int_t* set) {
+  // reads the digitisation parameters and fill the RichDigitisationPar container
+  Int_t version=getPredefVersion(pPar);
+  Int_t contVers=pPar->getInputVersion(inputNumber);
+  if (version==-1) version=getDigiparVersion(contVers);
+  if (version==-1) return kFALSE;
+  if (contVers==version) return kTRUE;
+  pPar->setInputVersion(version,inputNumber);
+  pPar->clear();
+  EXEC SQL BEGIN DECLARE SECTION;
+  int vers;
+  float c_el_per_keV;
+  int c_pad_range;
+  int c_mat_pad_range; 
+  float c_mat_pad_size, c_chrg_coupling;
+  int c_noise_sigma, c_chrg_per_chn, c_anode_voltage;
+  int c_polya_lower, c_polya_upper;
+  float c_chrg_coupl_4, c_chrg_coupl_17a, c_chrg_coupl_17b;
+  float c_chrg_coupl_17, c_chrg_coupl_351, c_chrg_coupl_352;
+  float c_chrg_coupl_02681, c_chrg_coupl_02682, c_chrg_coupl_02683;
+  float c_chrg_coupl_02684;
+  int c_number_bins;
+  int c_chrkv_ph_lg_vers_id, c_chrkv_qeff_vers_id;
+  int c_vec_size_qeff, c_vec_size_phlg;
+  EXEC SQL END DECLARE SECTION;
+  vers=version;
+  Int_t r_chrkv_qeff_vers_id  = 0;
+  Int_t r_chrkv_ph_lg_vers_id = 0;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichDigitisationPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL SELECT el_per_keV,pad_range,mat_pad_range,mat_pad_size,
+                  chrg_coupling,noise_sigma,chrg_per_chn,
+                  anode_voltage,polya_lower,polya_upper,
+                  chrg_coupl_4,chrg_coupl_17a,chrg_coupl_17b,
+                  chrg_coupl_17,chrg_coupl_351,chrg_coupl_352,
+                  chrg_coupl_02681,chrg_coupl_02682,chrg_coupl_02683,
+                  chrg_coupl_02684,number_bins,a.chrkv_ph_lg_vers_id,a.chrkv_qeff_vers_id,
+                  q.vector_size,p.vector_size   
+           INTO   :c_el_per_keV,:c_pad_range,:c_mat_pad_range,
+                  :c_mat_pad_size,:c_chrg_coupling,:c_noise_sigma,
+                  :c_chrg_per_chn,:c_anode_voltage,:c_polya_lower,
+                  :c_polya_upper,:c_chrg_coupl_4,:c_chrg_coupl_17a,
+                  :c_chrg_coupl_17b,:c_chrg_coupl_17,:c_chrg_coupl_351,
+                  :c_chrg_coupl_352,:c_chrg_coupl_02681,:c_chrg_coupl_02682,
+                  :c_chrg_coupl_02683,:c_chrg_coupl_02684,
+                  :c_number_bins,:c_chrkv_ph_lg_vers_id,:c_chrkv_qeff_vers_id,
+                  :c_vec_size_qeff,:c_vec_size_phlg
+           FROM   rich_anatest.digi_par a,rich_anatest.chrkv_qeff_vers q,
+                  rich_anatest.chrkv_ph_lg_vers p
+           WHERE  digi_par_vers_id = :vers AND 
+                  number_bins = q.vector_size AND 
+                  number_bins = p.vector_size AND
+                  a.chrkv_ph_lg_vers_id = p.chrkv_ph_lg_vers_id AND
+		  a.chrkv_qeff_vers_id = q.chrkv_qeff_vers_id;
+
+
+                  pPar->fElectronsNr = c_el_per_keV;
+	          pPar->fRichPadRange = c_pad_range;
+	          pPar->fMatrixPadRange = c_mat_pad_range;
+        	  pPar->fMatrixPadSize = c_mat_pad_size;
+        	  pPar->fFactorIndex = c_chrg_coupling;
+        	  pPar->fSigmaValue = c_noise_sigma;
+        	  pPar->fChargePerChannel = c_chrg_per_chn;
+        	  pPar->fVoltage = c_anode_voltage;
+        	  pPar->fQlower = c_polya_lower;
+        	  pPar->fQupper = c_polya_upper;
+        	  pPar->fFactor1 = c_chrg_coupl_4;
+        	  pPar->fParameter1 = c_chrg_coupl_17a;
+        	  pPar->fParameter2 = c_chrg_coupl_17b;
+         	  pPar->fFactor2 = c_chrg_coupl_17;
+        	  pPar->fFactor3 = c_chrg_coupl_351;
+        	  pPar->fFactor4 = c_chrg_coupl_352;
+        	  pPar->fFactor5 = c_chrg_coupl_02681;
+        	  pPar->fFactor6 = c_chrg_coupl_02682;
+        	  pPar->fFactor7 = c_chrg_coupl_02683;
+        	  pPar->fFactor8 = c_chrg_coupl_02684; 
+                  pPar->fBinsNr = c_number_bins;
+                  r_chrkv_qeff_vers_id = c_chrkv_qeff_vers_id;
+                  r_chrkv_ph_lg_vers_id = c_chrkv_ph_lg_vers_id;
+	
+	if ( !readPhLgVec   ( &(pPar->fPhotonLen)  ,r_chrkv_ph_lg_vers_id,
+                                 pPar->fBinsNr  )                            || 
+       	     !readQeffVec   ( &(pPar->fPhotonEff)  ,r_chrkv_qeff_vers_id ,
+                                 pPar->fBinsNr  ) 
+  	   ) return kFALSE;
+  pPar->setChanged();
+  cout<<"RichDigitisationPar initialized from Oracle"<<'\n';
+
+  return kTRUE;
+not_found:
+  return kFALSE;   
+}; 
+//************************************************************************
+
+Bool_t HRichParOraIo::read(HRichGeometryPar* pPar, Int_t* set) {
+  // reads the geometry parameters and fill the RichGeometryPar container
+
+// ===========================================
+// ===== GET NECESSARY DATA FROM DATABASE ====
+// ===========================================
+
+    // CAVEAT
+/* for the moment preprocessor definitions are used to assign some variables
+   containing characteristic values for the RICH like the number of frames.
+   With these values host arrays are initialized to a fixed size at compile time.
+   If you use a host array in a cursor fetch statement, only one transaction
+   over the network and in Oracle has to be executed. This saves a lot of time
+   and lets your code gain performance. This means that you should not program a
+   loop around a cursor fetch statement that fills scalar variables, as this
+   means the execution of as many database transactions as your loop iterates.
+   This overhead makes it slow ! (Pro*C/C++ docu:
+   What Causes Poor Performance? 
+   One cause of poor performance is high
+   communications overhead. Oracle8i must
+   process SQL statements one at a time. Thus, each
+   statement results in
+   another call to Oracle8i and higher overhead. In a
+   networked environment,
+   SQL statements must be sent over the network,
+   adding to network traffic.
+   Heavy network traffic can slow down your
+   application significantly.)
+   Unfortunately, it seems not possible to fill
+   a dynamically allocated array. Obviously, one would like to use data
+   structures which are initialized at run-time according to query results 
+   returned by the database. A possible but dirty way is to initialize fixed 
+   size arrays large enough to hold all the query result and then sort these data
+   into C++ structures. This can happen already inside a loop around the fetch
+   cursor, as long as one fetches into arrays of known size.
+*/
+
+
+// ----- retrieve nr of frame corners --------
+// ** the retrieved value is used for consistency checking only 
+  EXEC SQL BEGIN DECLARE SECTION;
+	int fr_cnrs_max;
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT max(frame_corner_id)  
+           INTO   :fr_cnrs_max
+           FROM   rich_anatest.frame_corners
+           WHERE  frame_id=1;
+
+  if(fr_cnrs_max != RICH_MAXFRAME_CNRS) {
+      cout<<"ERROR: max nr of frame corners inconsistent !"<<endl;
+      return kFALSE;
+  }
+// -------------------------------------------          
+
+/* 
+// ** example of how to program cursor fetching in a loop
+// ** using dynamically allocated arrays
+// ** unfortunately not used, as fetching becomes intolerably slow
+// ** due to a large communications overhead
+// ----- retrieve frame corners --------------
+//	float *x = (float*) malloc (fr_cnrs_max*sizeof(float));// C-style
+//	float *y = (float*) malloc (fr_cnrs_max*sizeof(float));// mem alloc
+        float *x = new float[fr_cnrs_max]; // array to hold corners
+        float *y = new float[fr_cnrs_max];
+  EXEC SQL BEGIN DECLARE SECTION;
+  	float *xt, *yt; // helper variables
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found1;
+  EXEC SQL DECLARE frame_cur CURSOR FOR
+           SELECT x,y  
+           FROM   rich_anatest.frame_corners
+           WHERE  frame_id=1;
+  EXEC SQL OPEN frame_cur;
+	xt=x; // init helpers with address of array
+        yt=y;
+	for (;;){ // fetch only into scalar variables
+	   EXEC SQL FETCH frame_cur INTO :xt,:yt;
+           xt++;
+           yt++;		  
+        }
+not_found1:
+  EXEC SQL CLOSE frame_cur;
+*/
+
+// -- retrieve frame corner values ----------------------
+  EXEC SQL BEGIN DECLARE SECTION;
+  	float fr_x[RICH_MAXFRAME_CNRS], fr_y[RICH_MAXFRAME_CNRS];
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found1;
+  EXEC SQL DECLARE frame_cur CURSOR FOR
+           SELECT x,y  
+           FROM   rich_anatest.frame_corners
+           WHERE  frame_id=1;
+  EXEC SQL OPEN frame_cur;
+  EXEC SQL FETCH frame_cur INTO :fr_x,:fr_y;
+not_found1:
+  EXEC SQL CLOSE frame_cur;
+
+
+// ------ retrieve max nr of wires -----------
+// ** the retrieved value is used for consistency checking only 
+  EXEC SQL BEGIN DECLARE SECTION;
+        int wire_id_max;
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT max(wire_id)  
+           INTO   :wire_id_max
+           FROM   rich_anatest.wires
+           WHERE  sector_id=1; // equal nr of wires for all sectors
+  if(wire_id_max != RICH_MAXWIRES) {
+      cout<<"ERROR: max nr of wires per sector inconsistent !"<<endl;
+      return kFALSE;
+  }
+// -------------------------------------------
+
+/*
+// ------ retrieve wire coords ---------------
+	float *wire_coords = new float[wire_id_max]; 
+//	float *wire_coords = (float*) malloc (wire_id_max*sizeof(float));
+  EXEC SQL BEGIN DECLARE SECTION;
+        float *wt;
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found2;
+  EXEC SQL DECLARE wire_cur CURSOR FOR
+           SELECT dist_sym  
+           FROM   rich_anatest.wires
+           WHERE  sector_id=1; // wire pos identical for all sectors
+  EXEC SQL OPEN wire_cur;
+
+           wt=wire_coords;
+	   for (;;){
+	       EXEC SQL FETCH wire_cur INTO :wt;
+	       wt++;
+	   }
+
+not_found2:	
+  EXEC SQL CLOSE wire_cur;
+*/
+// ---- retrieve wire coordinates --------------
+  EXEC SQL BEGIN DECLARE SECTION;
+        float wires[RICH_MAXWIRES];
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found2;
+  EXEC SQL DECLARE wire_cur CURSOR FOR
+           SELECT dist_sym  
+           FROM   rich_anatest.wires
+           WHERE  sector_id=1; // wire pos identical for all sectors
+  EXEC SQL OPEN wire_cur;
+  EXEC SQL FETCH wire_cur INTO :wires;
+	
+not_found2:	
+  EXEC SQL CLOSE wire_cur;
+// --------------------------------------------
+
+// - retrieve distance of wires from padplane -
+  EXEC SQL BEGIN DECLARE SECTION;
+        float wire_dist;
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT DISTINCT dist_plane  
+           INTO :wire_dist
+           FROM   rich_anatest.wires;
+  Int_t nr_ret_rows = sqlca.sqlerrd[2];
+  if (nr_ret_rows != 1) {
+      cout<<"ERROR: Not all wires have the same distance from the padplane !"<<endl;
+      return kFALSE;
+  }
+// -------------------------------------------
+
+// ---------- retrieve sector center ---------
+EXEC SQL BEGIN DECLARE SECTION;
+        float cntr_x[RICH_MAXSEC];
+	float cntr_y[RICH_MAXSEC];
+	float cntr_z[RICH_MAXSEC];
+	int center_id[RICH_MAXSEC];
+EXEC SQL END   DECLARE SECTION;
+EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found3;
+  EXEC SQL DECLARE cntr_cur CURSOR FOR
+           SELECT center_id,x,y,z
+	   FROM rich_anatest.sector_center;
+  EXEC SQL OPEN cntr_cur;
+  EXEC SQL FETCH cntr_cur INTO :center_id,:cntr_x,:cntr_y,:cntr_z;
+not_found3:	
+  EXEC SQL CLOSE cntr_cur;
+// -------------------------------------------
+
+// -- retrieve rotation angles of sectors ----  
+  EXEC SQL BEGIN DECLARE SECTION;
+	int rot_angle[RICH_MAXSEC];
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found4;
+  EXEC SQL DECLARE rot_angle_cur CURSOR FOR
+           SELECT rot_angle
+	   FROM rich_anatest.sector_pos;
+  EXEC SQL OPEN rot_angle_cur;
+  EXEC SQL FETCH rot_angle_cur INTO :rot_angle;
+not_found4:	
+  EXEC SQL CLOSE rot_angle_cur;
+// -------------------------------------------  
+
+// -- retrieve rotation matrices -------------  
+EXEC SQL BEGIN DECLARE SECTION;
+        float mat_col[3*3*RICH_MAXSEC];
+	float mat_row[3*3*RICH_MAXSEC];
+	float mat_value[3*3*RICH_MAXSEC];
+EXEC SQL END   DECLARE SECTION;
+EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found5;
+EXEC SQL DECLARE rotmat_cur CURSOR FOR
+           SELECT mat_col,mat_row,value
+	   FROM rich_anatest.sec_rotmat;
+  EXEC SQL OPEN rotmat_cur;
+  EXEC SQL FETCH rotmat_cur INTO :mat_col,:mat_row,:mat_value;
+not_found5:	
+  EXEC SQL CLOSE rotmat_cur;
+// -------------------------------------------  
+
+//============================================
+//---------------- PAD INI -------------------
+//============================================
+
+
+// -- retrieve max nr of digi pads -----------
+// ** for consistency checking only
+  EXEC SQL BEGIN DECLARE SECTION;
+        int digi_pads_max;
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT count( distinct pad_pos_id)  
+           INTO   :digi_pads_max
+           FROM   rich_anatest.digi_pad_corners;
+  if(digi_pads_max != RICH_MAXPADS_DIGI) {
+      cout<<"ERROR: max nr of pads for digitization per sector inconsistent !"<<endl;
+      return kFALSE;
+  }
+// -------------------------------------------
+
+
+// -- retrieve max nr of digi pad corners ----
+// ** for consistency checking only
+  EXEC SQL BEGIN DECLARE SECTION;
+        int digi_cnrs_max;
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL SELECT count(pad_pos_id)  
+           INTO   :digi_cnrs_max
+           FROM   rich_anatest.digi_pad_corners;
+  if(digi_pads_max != RICH_MAXPADS_DIGI) {
+      cout<<"ERROR: max nr of pads for digitization per sector inconsistent !"<<endl;
+      return kFALSE;
+  }
+// -------------------------------------------
+
+
+
+// ----- struct to store pad data before insert into container
+
+  /*
+typedef struct pad {
+	float *x_coord;
+	float *y_coord;
+	int max_corner_num;
+	int pad_pos_id;
+	float theta;
+	float phi[RICH_MAXSEC];
+	};
+pad **padplane = new (pad*)[digi_pads_max];
+
+  */
+// ----- retrieve digi pad corners -----------
+  EXEC SQL BEGIN DECLARE SECTION;
+  	float cornerx[RICH_MAXPAD_DIGI_CNRS*RICH_MAXPADS_DIGI];
+	float cornery[RICH_MAXPAD_DIGI_CNRS*RICH_MAXPADS_DIGI];
+	int pad_pos_id[RICH_MAXPAD_DIGI_CNRS*RICH_MAXPADS_DIGI];
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found8;
+  EXEC SQL DECLARE pad_cur CURSOR FOR
+           SELECT pad_pos_id,x,y  
+           FROM   rich_anatest.digi_pad_corners
+           ORDER BY pad_pos_id,corner_num ASC;
+  EXEC SQL OPEN pad_cur;
+  EXEC SQL FETCH pad_cur INTO :pad_pos_id,:cornerx,:cornery; 
+
+      /*
+	int pad_pos_tmp_old=0; //helpers to sense change of pad
+	int pad_pos_tmp_new=0;
+	int curr_pad_nr=0;
+	for (;;){ 
+	   EXEC SQL FETCH pad_cur INTO :pt,:ct,:cxt,:cyt;
+	   pad_pos_tmp_new=pt;
+	   if (pad_pos_tmp_new != pad_pos_tmp_old){
+		padplane[curr_pad_nr] = new pad;
+	     	pad_pos_tmp_old=pad_pos_tmp_new;
+	     	// possible because of order clause in select !
+	     	padplane[curr_pad_nr]->max_corner_num = ct;
+	     	padplane[curr_pad_nr]->pad_pos_id = pt;     
+	     	padplane[curr_pad_nr]->x_coord = 
+		  new float[padplane[curr_pad_nr]->max_corner_num];	
+ 	     	padplane[curr_pad_nr]->y_coord = 
+		  new float[padplane[curr_pad_nr]->max_corner_num];
+	      	curr_pad_nr++;
+		EXEC SQL WHENEVER NOT FOUND DO CONTINUE;
+	        
+	   }
+	   padplane[curr_pad_nr-1]->y_coord[ct-1] = cyt;
+	   padplane[curr_pad_nr-1]->x_coord[ct-1] = cxt;
+	   }*/
+not_found8:
+  EXEC SQL CLOSE pad_cur;
+// -------------------------------------------
+
+// ------ retrieve digi pad angles -----------
+// set the version of theta/phi to be used:
+// currently: angle_par_vers_id =1 means Toni with M-C-simulation 
+//                      (4670 per sector, many readout pads are missing !)
+//            angle_par_vers_id =2 means Soenke num calc for pads used in digitization
+//                      (4894 per sector)
+//            angle_par_vers_id =3 means Soenke num calc for pads of the orig pad design
+//                      (4850 per sector)
+  Int_t av = 2; // FIXME: should be chosen by user,
+                // later accord to time stamp or sim run
+  EXEC SQL BEGIN DECLARE SECTION;
+	int ang_pos_id[RICH_MAXSEC*RICH_MAXPADS_DIGI];
+	int ang_sector_id[RICH_MAXSEC*RICH_MAXPADS_DIGI];
+	float ang_theta[RICH_MAXSEC*RICH_MAXPADS_DIGI];
+	float ang_phi[RICH_MAXSEC*RICH_MAXPADS_DIGI];
+	int cav = av;
+  EXEC SQL END   DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("read(HRichGeometryPar*,Int_t*)");
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found9;
+  EXEC SQL DECLARE angle_cur CURSOR FOR
+	   SELECT pad_pos_id, sector_id, theta, phi
+	   FROM rich_anatest.pads a, rich_anatest.angle_par b
+	   WHERE b.angle_par_vers_id=:cav
+	   AND a.pad_id = b.pad_id
+	   ORDER BY pad_pos_id ASC,
+	   sector_id ASC;
+  EXEC SQL OPEN angle_cur;
+  EXEC SQL FETCH angle_cur INTO :ang_pos_id,:ang_sector_id,:ang_theta,:ang_phi;
+
+  /*
+	pad_pos_tmp_old=0; //helpers to sense change of pad
+	pad_pos_tmp_new=0;
+	curr_pad_nr=0;
+	for (;;){ 
+	   EXEC SQL FETCH angle_cur INTO :ang_pos_id,:ang_sector_id,:ang_theta,:ang_phi;
+	   pad_pos_tmp_new=c_pos_id;
+	   if (pad_pos_tmp_old == 0) { // first pad only
+		pad_pos_tmp_old = pad_pos_tmp_new;
+		if (padplane[curr_pad_nr]->pad_pos_id == pad_pos_tmp_new){
+			padplane[curr_pad_nr]->theta=c_theta;
+	   	}else{
+			cout<<"error in reading theta/phi"<<endl;
+	   	} 
+	   }
+	   if (pad_pos_tmp_new != pad_pos_tmp_old) { //  done for each pad
+		curr_pad_nr++;
+		cout<<"now reading angles of pad nr :"<<curr_pad_nr<<endl;
+		pad_pos_tmp_old = pad_pos_tmp_new;
+	        if (padplane[curr_pad_nr]->pad_pos_id == pad_pos_tmp_new){
+			padplane[curr_pad_nr]->theta=c_theta;
+	   	}else{
+			cout<<"error in reading theta/phi"<<endl;
+	   	}
+	   }
+	   if (padplane[curr_pad_nr]->pad_pos_id == pad_pos_tmp_new){
+		// done for each row returned by cursor
+		padplane[curr_pad_nr]->phi[c_sector_id-1]=c_phi;
+	   }else{
+		cout<<"error in reading theta/phi"<<endl;
+	   }
+	   
+	   }*/
+not_found9:
+  EXEC SQL CLOSE angle_cur;
+
+  
+
+// -------------------------------------------
+// ===========================================
+// ======== END DATABASE COMMUNICATION =======
+// ===========================================
+// -------------------------------------------
+
+/*
+// print out for debugging
+  for (int i=0;i<RICH_MAXFRAME_CNRS;i++){
+	cout<<fr_x[i]<<" "<<fr_y[i]<<endl;
+  }
+  for (int i=0;i<RICH_MAXWIRES;i++){
+	cout<<wires[i]<<endl;
+  }
+
+// print out for debugging
+
+  //for (int i=0;i<RICH_MAXSEC*RICH_MAXPADS_DIGI;i++){
+    for (int i=0;i<100;i++){ 
+        cout<<ang_pos_id[i]<<" "<<ang_sector_id[i]<<" "<<
+	ang_theta[i]<<" "<<ang_phi[i]<<endl;
+}
+*/
+// print out for debugging
+/*
+for (int i=0;i<4894;i++){
+	cout<<"Pad nr: "<<padplane[i]->pad_pos_id<<
+		" cnr nr: "<<padplane[i]->max_corner_num<<endl;
+	for (int j=0;j<4;j++){
+	    	cout<<" Cnr nr: "<<j+1<<" X "<<padplane[i]->x_coord[j]<<
+		      " Y "<<padplane[i]->y_coord[j]<<endl;
+	}
+	cout<<"Theta : "<<padplane[i]->theta<<endl;
+	for ( j=0;j<6;j++){
+	    	cout<<" Sector: "<<j+1<<" phi: "<<padplane[i]->phi[j]<<endl;
+	}
+}
+*/
+
+
+// -------------------------------------------
+
+// -------------------------------------------
+
+
+  HRichDetector *pRichDet = (HRichDetector*)gHades->getSetup()->getDetector("Rich");
+  for (int i = 0; i < 6; i++) {
+  	pPar->fSectorActive[i] = pRichDet->getModule(i,0);
+   	if (pPar->fSectorActive[i] > 0) pPar->fSectorsNr++;
+  }
+// the number of cols and rows to be used may only be retrieved from
+// HRichDetector, never set them yourself ! --> Pedestal !!!  
+  if (pPar->fSectorsNr > 0) {
+   	pPar->fColumns = pRichDet->getColumns();
+   	pPar->fRows = pRichDet->getRows();
+  }
+
+// initialize frame cntr
+
+  pPar -> fFrame.setCornerNr(RICH_MAXFRAME_CNRS);
+  HRichFrameCorner *pFrameCorner;
+  for (int i = 0; i < RICH_MAXFRAME_CNRS; i++) {
+       pFrameCorner = new HRichFrameCorner;
+       pFrameCorner->setX(fr_x[i]);
+       pFrameCorner->setY(fr_y[i]);
+       pFrameCorner->setCornerNr(i);
+       pPar -> fFrame.addCorner(pFrameCorner);
+    }
+  
+// initialize wire coords  
+
+  HRichWire *pWire;
+  pPar->fWires.setWiresNr(RICH_MAXWIRES);
+  pPar->fWires.setDistWire((wires[RICH_MAXWIRES-1]-wires[RICH_MAXWIRES-2])/2);    
+  for (int i = 0; i < pPar->fWires.getWiresNr(); i++) {
+   pWire = new HRichWire;
+   pWire->setNrWire(i);
+   pWire->setXWire(wires[i]);
+   pPar->fWires.addWire(pWire);
+  }
+
+  pPar->fDistanceWiresPads = wire_dist; 
+
+// ------ ini pad structure -------------- 
+
+  if (pPar->fPads.createPads(pPar->fColumns,pPar->fRows) == 0) {
+      cout<<"ERROR: zero Pads created in initialization"<<endl;
+      return kFALSE;
+  }
+
+  // this is the dummy initialisation of all pads structure 
+  for (int i = 0; i < pPar->fPads.getPadsNr(); i++) {
+   HRichPad *pad = new HRichPad;
+   pad->setPadNr(i);
+   pad->CalcNrtoXY(pPar->fPads.getPadsX());
+   pad->setPadActive(0);
+   pad->setPadFlag(0); 
+   for (int j=0; j<RICH_MAXSEC; j++) pad->setPhi(j,0.0);
+   pad->setTheta(0.0);
+   pPar->fPads.setPad(pad, i);
+   delete pad;
+  }
+
+  Int_t c_index,a_index,cpos_tmp,apos_tmp,xpad,ypad,cnr_cntr,sec_cntr;
+  
+  for (int i=0;i< RICH_MAXPADS_DIGI;i++){
+      cnr_cntr = 0;
+      sec_cntr = 0;
+      c_index = i*RICH_MAXPAD_DIGI_CNRS;
+      a_index = i*RICH_MAXSEC;
+      cpos_tmp = pad_pos_id[c_index];
+      apos_tmp = ang_pos_id[a_index];
+      if (cpos_tmp != apos_tmp){
+	  cout<<"ERROR: operating on different pads !"<<endl;
+	  return kFALSE;
+      }
+      xpad = cpos_tmp/100;
+      ypad = cpos_tmp%100;
+      HRichPad *pad = pPar->fPads.getPad(xpad, ypad);
+      pad->setPadActive(1);
+      pPar->fPads.incActivePadsNr();
+      pad->setLinkedPadsNr(0);
+      // FIXME: linked pads are currently not cared for. 
+      // The reason is that they are not used in digitization and 
+      // there are dummy values in the ASCII file
+      // --------------------------------------------------------
+
+      // ---- pad corners ----
+      
+      for(int j=c_index;j<c_index+RICH_MAXPAD_DIGI_CNRS;j++){
+	  HRichPadCorner *padcorner = new HRichPadCorner;
+	  padcorner->setX(cornerx[j]);
+	  padcorner->setY(cornery[j]);
+	  padcorner->setCornerNr(cnr_cntr++);
+	  pad->addCorner(padcorner);
+      }
+      pad->setTheta(ang_theta[a_index]); // pad theta angle
+
+      // ---- pad phi angles ----
+      
+      for(int k=a_index;k<a_index+RICH_MAXSEC;k++){
+	if (pPar->getSector(sec_cntr) > 0) {  
+	    pad->setPhi(sec_cntr,ang_phi[k]);
+	}
+	sec_cntr++;
+      }
+  
+      
+  }
+  pPar->fPads.initParameters();
+
+// --------------- end of pad ini ----------------------
+
+  pPar->setChanged();
+  // no version management foreseen
+  pPar->setInputVersion(1,inputNumber);
+  pPar->setStatic();
+
+// -----------------------------------------------------
+// -------------- print out for debugging --------------
+
+/*
+  HRichPad *pad = pPar->fPads.getPad(41,23);
+
+  cout<<"PAD x :"<<pad->getPadX()<<" , center in mm "<<pad->getX()<<endl;
+  cout<<"PAD y :"<<pad->getPadY()<<" , center in mm "<<pad->getY()<<endl;
+  cout<<"Pad number :"<<pad->getPadNr()<<endl;
+  cout<<"Pad flag : "<<pad->getPadFlag()<<endl;
+  char* active="no";
+  if (pad->getPadActive()) active="yes";
+  cout<<"Pad active ? "<<active<<endl;
+  cout<<"Number of pad_corners :"<<pad->getCornersNr()<<endl;
+  for (int h=0;h<pad->getCornersNr();h++){
+     HRichPadCorner* corner  = (HRichPadCorner*) pad->getCorner(h);
+     cout<<"Corner nr :"<<h<<"  x: "<<corner->getX()
+	 <<"   y: "<<corner->getY()<<endl;
+  }
+  cout<<"Theta : "<<pad->getTheta()<<" Phis : ";
+  for (int h=0;h<6;h++) cout<<" "<<pad->getPhi(h)<<" ";
+  //cout<<endl<<"Coordinates in lab :"<<endl;
+  //for (int h=0;h<6;h++) cout<<"x: "<<pad->getXlab(h)<<" y: "<<pad->getYlab(h)<<
+  //			    " z: "pad->getZlab(h)<<endl;
+  cout<<endl;
+*/  
+// -----------------------------------------------------
+  cout<<"RichGeometryPar initialized from Oracle"<<'\n';
+
+  return kTRUE;
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::readPhLgVec(TArrayF* array,Int_t version,Int_t vecSize){
+  EXEC SQL BEGIN DECLARE SECTION;
+     int c_bin[1000];
+     float c_value[1000];
+     int c_vers;
+  EXEC SQL END DECLARE SECTION;
+     c_vers=version;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readPhLgVec(TArrayF*,Int_t,Int_t)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE phlg_cur CURSOR FOR
+           SELECT bin,value   
+           FROM rich_anatest.chrkv_ph_lg
+           WHERE chrkv_ph_lg_vers_id = :c_vers;
+  EXEC SQL OPEN phlg_cur;
+  EXEC SQL FETCH phlg_cur INTO :c_bin,:c_value;
+  Bool_t rc = kTRUE;
+  Int_t nVecElems=sqlca.sqlerrd[2];
+  if (nVecElems == vecSize) {
+   	if (array->GetSize() != nVecElems) {
+		array->Reset();
+		array->Set(nVecElems);
+	}
+    	for(Int_t i=0;i<nVecElems;i++) {
+        	array->AddAt(c_value[i],c_bin[i]-1); 
+    	}
+  } else{
+	    Error("readPhLgVec(TArrayF*,Int_t,Int_t)",
+                  "Inconsistent number of rows returned");
+            rc = kFALSE;
+  }
+  EXEC SQL CLOSE phlg_cur;
+  return rc; 
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::readQeffVec(TArrayF* array,Int_t version,Int_t vecSize){
+  EXEC SQL BEGIN DECLARE SECTION;
+     int c_bin[1000];
+     float c_value[1000];
+     int c_vers;
+  EXEC SQL END DECLARE SECTION;
+     c_vers=version;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readQeffVec(TArrayF*,Int_t,Int_t)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE qeff_cur CURSOR FOR
+           SELECT bin,value   
+           FROM rich_anatest.chrkv_qeff
+           WHERE chrkv_qeff_vers_id = :c_vers;
+  EXEC SQL OPEN qeff_cur;
+  EXEC SQL FETCH qeff_cur INTO :c_bin,:c_value;
+  Bool_t rc = kTRUE;
+  Int_t nVecElems=sqlca.sqlerrd[2];
+  //cout<<"HRichParOraIo::readQeffVec, no of returned rows: "<<nVecElems<<endl;
+	//cout<<"HRichParOraIo::readQeffVec, cntr vecsize : "<<vecSize<<endl;
+  if (nVecElems == vecSize) {
+   	if (array->GetSize() != nVecElems) {
+		array->Reset();
+		array->Set(nVecElems);
+	}
+    	for(Int_t i=0;i<nVecElems;i++) {
+	//cout<<"HRichParOraIo::readQeffVec, index, value, bin :"<<i<<" "<<c_value[i]<<" "<<" "<<c_bin[i]<<endl;
+        	array->AddAt(c_value[i],c_bin[i]-1); 
+    	}
+  } else{
+	    Error("readQeffVec(TArrayF*,Int_t,Int_t)",
+                  "Inconsistent number of rows returned");
+            rc = kFALSE;
+  }
+  EXEC SQL CLOSE qeff_cur;
+  return rc;
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::readMaskMatrix(TArrayI* array,Int_t version,Int_t matsize){
+  EXEC SQL BEGIN DECLARE SECTION;
+     int c_col[400];
+     int c_row[400];
+     int c_value[400];
+     int c_vers;
+  EXEC SQL END DECLARE SECTION;
+  c_vers=version;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readMaskMatrix(TArrayI*,Int_t,Int_t)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE mask_cur CURSOR FOR
+           SELECT M_COL,M_ROW,M_VALUE   
+           FROM rich_anatest.ring_mask
+           WHERE ring_mask_vers_id = :c_vers;
+  EXEC SQL OPEN mask_cur;
+  EXEC SQL FETCH mask_cur INTO :c_col,:c_row,:c_value;
+  Bool_t rc = kTRUE;
+  Int_t nMatrixElems=sqlca.sqlerrd[2]; // no of returned rows !
+  if (matsize*matsize == nMatrixElems) {
+    if (array->GetSize() != nMatrixElems) array->Set(nMatrixElems);
+      for(Int_t i=0;i<nMatrixElems;i++) {
+        array->AddAt(c_value[i],matsize*(c_row[i]-1) + c_col[i]-1); 
+      }
+  } else {
+            Error("readMaskMatrix(TArrayI*,Int_t,Int_t)",
+                  "Inconsistent number of rows returned");
+            rc = kFALSE;
+  }
+  EXEC SQL CLOSE mask_cur;
+  return rc;
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::readPatternMatrix(TArrayI* array,Int_t version,Int_t matsize){
+  EXEC SQL BEGIN DECLARE SECTION;
+     int c_col[400];
+     int c_row[400];
+     int c_value[400];
+     int c_vers;
+  EXEC SQL END DECLARE SECTION;
+  c_vers=version;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("readPatternMatrix(TArrayI*,Int_t,Int_t)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE pat_cur CURSOR FOR
+           SELECT M_COL,M_ROW,M_VALUE   
+           FROM rich_anatest.ring_pat
+           WHERE ring_pat_vers_id = :c_vers;
+  EXEC SQL OPEN pat_cur;
+  EXEC SQL FETCH pat_cur INTO :c_col,:c_row,:c_value;
+  Bool_t rc = kTRUE;
+  Int_t nMatrixElems=sqlca.sqlerrd[2]; // no of returned rows !
+  if (matsize*matsize == nMatrixElems) {
+    if (array->GetSize() != nMatrixElems) array->Set(nMatrixElems);
+      for(Int_t i=0;i<nMatrixElems;i++) {
+        array->AddAt(c_value[i],matsize*(c_row[i]-1) + c_col[i]-1); 
+      }
+  } else {
+            Error("readPatternMatrix(TArrayI*,Int_t,Int_t)",
+                  "Inconsistent number of rows returned");
+            rc = kFALSE;
+  }
+  EXEC SQL CLOSE pat_cur;
+  return rc;
+};
+//************************************************************************
+
+Int_t HRichParOraIo::writePar(HRichAnalysisPar* pPar) {
+  cout<<"****************************************************************\n";
+  Int_t version=createAnaparVers();
+  if (version==-1) return -1;
+  Int_t mask_version=getMaskVersion(&(pPar->iRingMask),pPar->iRingMaskSize);
+  if (mask_version==-1) return -1;
+  Int_t pattern_version=getPatternVersion(&(pPar->iRingMatrix),pPar->iRingMatrixSize);
+  if (pattern_version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers;
+    int c_sig_thr, c_ring_rad, c_ring_rad_err;
+    int c_cl_pad_stat,c_cl_pad_border,c_cl_pad_l_thr;
+    int c_cl_hi_pls_stat,cl_hi_pls_brd,c_cl_hi_pls_u_thr;
+    int c_l_pad_stat,c_l_pad_dist;
+    int c_ring_t_dens_stat;
+    float c_pad_dens_thr,c_surf_area;
+    int c_dyn_amp_thr_stat;
+    float c_min_amp_frct;
+    float c_form_para_1,c_form_para_2,c_form_para_3;
+    int c_pad_ratio_stat;
+    float c_pad_in_out_ratio;
+    int c_t_ring_asym_stat,c_sup_algo_nr;
+    int c_ring_fitpatmat_stat,c_min_fit_qual,c_min_fit_dist;
+    int c_num_ring_fit;
+    int c_ring_houtrans_stat,c_min_houtrans_qual,c_min_houtrans_dist;
+    int c_num_ring_houtrans;
+    int c_ring_mask_vers_id,c_ring_pat_vers_id;
+    int c_ring_mask_size, c_ring_pat_size;
+  EXEC SQL END DECLARE SECTION;
+  vers=version;
+  c_ring_mask_vers_id=mask_version;
+  c_ring_pat_vers_id=pattern_version;
+  c_sig_thr=pPar->iCutOffThresheold;
+  c_ring_rad=pPar->iRingRadius;
+  c_ring_rad_err=pPar->iRingRadiusError;
+  c_cl_pad_stat=pPar->isActiveCleanAlonePad;
+  c_cl_pad_border=pPar->iCleanAlonePadBorder;
+  c_cl_pad_l_thr=pPar->iCleanAlonePadLowerThreshold;
+  c_cl_hi_pls_stat=pPar->isActiveCleanHighPulse;
+  cl_hi_pls_brd=pPar->iCleanHighPulseBorder;
+  c_cl_hi_pls_u_thr=pPar->iCleanHighPulseUpperThreshold;
+  c_l_pad_stat=pPar->isActiveLabelPads;
+  c_l_pad_dist=pPar->iLabeledPadsDistance;
+  c_ring_t_dens_stat=pPar->isActiveTestDensity;
+  c_pad_dens_thr=pPar->fThresholdDensity;
+  c_surf_area=pPar->fSurfaceArea;
+  c_dyn_amp_thr_stat=pPar->isActiveDynamicThrAmplitude;
+  c_min_amp_frct=pPar->fLowerAmplFactor;
+  c_form_para_1=pPar->fFormulaParam1;
+  c_form_para_2=pPar->fFormulaParam2;
+  c_form_para_3=pPar->fFormulaParam3;
+  c_pad_ratio_stat=pPar->isActiveFiredRingPadsRatio;
+  c_pad_in_out_ratio=pPar->fFiredRingPadsRatio;
+  c_t_ring_asym_stat=pPar->isActiveTestAsymmetry;
+  c_sup_algo_nr=pPar->iSuperiorAlgorithmID;
+  c_ring_fitpatmat_stat=pPar->isActiveRingFindFitMatrix;
+  c_min_fit_qual=pPar->iMinimalFitMatrixRingQuality;
+  c_min_fit_dist=pPar->iMinimalFitMatrixRingDistance;
+  c_num_ring_fit=pPar->iHowManyFitMatrixRings;
+  c_ring_houtrans_stat=pPar->isActiveRingHoughTransf;
+  c_min_houtrans_qual=pPar->iMinimalHoughTransfRingQuality;
+  c_min_houtrans_dist=pPar->iMinimalHoughTransfRingDistance;
+  c_num_ring_houtrans=pPar->iHowManyHoughTransfRings;
+  c_ring_mask_size=pPar->iRingMaskSize;
+  c_ring_pat_size=pPar->iRingMatrixSize;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL INSERT INTO rich_anatest.ana_par (
+                  ANA_PAR_VERS_ID,
+                  SIG_THR,RING_RAD,RING_RAD_ERR,
+                  CL_PAD_STAT,CL_PAD_BRD,CL_PAD_L_THR,
+                  CL_HI_PLS_STAT,CL_HI_PLS_BRD,CL_HI_PLS_U_THR,
+                  L_PAD_STAT,L_PAD_DIST,
+                  RING_T_DENS_STAT,PAD_DENS_THR,
+                  SURF_AREA,
+                  DYN_AMP_THR_STAT,MIN_AMP_FRCT,
+                  FORM_PARA_1,FORM_PARA_2,FORM_PARA_3,
+                  PAD_RATIO_STAT,PAD_IN_OUT_RATIO,
+                  T_RING_ASYM_STAT,
+                  SUP_ALGO_NR,
+                  RING_FITPATMAT_STAT,MIN_FIT_QUAL,MIN_FIT_DIST,
+                  NUM_RING_FIT,
+                  RING_HOUTRANS_STAT,MIN_HOUTRANS_QUAL,
+                  MIN_HOUTRANS_DIST,NUM_RING_HOUTRANS,
+                  RING_MASK_VERS_ID,
+                  RING_PAT_VERS_ID)  
+           VALUES (
+	        :vers,       
+                :c_sig_thr,:c_ring_rad,:c_ring_rad_err,
+                :c_cl_pad_stat,:c_cl_pad_border,:c_cl_pad_l_thr,
+                :c_cl_hi_pls_stat,:cl_hi_pls_brd,:c_cl_hi_pls_u_thr,
+                :c_l_pad_stat,:c_l_pad_dist,
+                :c_ring_t_dens_stat,
+                :c_pad_dens_thr,:c_surf_area,
+                :c_dyn_amp_thr_stat,
+                :c_min_amp_frct,
+                :c_form_para_1,:c_form_para_2,:c_form_para_3,
+                :c_pad_ratio_stat,
+                :c_pad_in_out_ratio,
+                :c_t_ring_asym_stat,:c_sup_algo_nr,
+                :c_ring_fitpatmat_stat,:c_min_fit_qual,
+                :c_min_fit_dist,
+                :c_num_ring_fit,
+                :c_ring_houtrans_stat,:c_min_houtrans_qual,
+                :c_min_houtrans_dist,
+                :c_num_ring_houtrans,
+                :c_ring_mask_vers_id,:c_ring_pat_vers_id);
+  cout<<"******    Analysis parameters written to Oracle\n";
+  commit();
+  pPar->setChanged(kFALSE);
+  cout<<"****************************************************************\n";
+  return version;
+not_found:
+  showSqlError("writePar(HRichAnaPar*)");
+  rollback();
+  pPar->setChanged(kFALSE);
+  return -1;       
+};
+//************************************************************************
+
+Int_t HRichParOraIo::writePar(HRichDigitisationPar* pPar) {
+  cout<<"****************************************************************\n";
+  Int_t version=createDigiparVers();
+  if (version==-1) return -1;
+  Int_t qeff_version=getQeffVers(&(pPar->fPhotonEff),pPar->fBinsNr);
+  if (qeff_version==-1) return -1;
+  Int_t phlg_version=getPhLgVers(&(pPar->fPhotonLen),pPar->fBinsNr);
+  if (phlg_version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+  int vers;
+  float c_el_per_keV;
+  int c_pad_range;
+  int c_mat_pad_range; 
+  float c_mat_pad_size, c_chrg_coupling;
+  float c_noise_sigma,c_chrg_per_chn;
+  int c_anode_voltage;
+  float c_polya_lower, c_polya_upper;
+  float c_chrg_coupl_4, c_chrg_coupl_17a, c_chrg_coupl_17b;
+  float c_chrg_coupl_17, c_chrg_coupl_351, c_chrg_coupl_352;
+  float c_chrg_coupl_02681, c_chrg_coupl_02682, c_chrg_coupl_02683;
+  float c_chrg_coupl_02684;
+  int c_number_bins;
+  int c_chrkv_ph_lg_vers_id, c_chrkv_qeff_vers_id;
+  EXEC SQL END DECLARE SECTION;
+  vers=version;
+  c_el_per_keV=pPar->fElectronsNr;
+  c_pad_range=pPar->fRichPadRange;
+  c_mat_pad_range=pPar->fMatrixPadRange;
+  c_mat_pad_size=pPar->fMatrixPadSize;
+  c_chrg_coupling=pPar->fFactorIndex;
+  c_noise_sigma=pPar->fSigmaValue;
+  c_chrg_per_chn=pPar->fChargePerChannel;
+  c_anode_voltage=pPar->fVoltage;
+  c_polya_lower=pPar->fQlower;
+  c_polya_upper=pPar->fQupper;
+  c_chrg_coupl_4=pPar->fFactor1;
+  c_chrg_coupl_17a=pPar->fParameter1;
+  c_chrg_coupl_17b=pPar->fParameter2;
+  c_chrg_coupl_17=pPar->fFactor2;
+  c_chrg_coupl_351=pPar->fFactor3;
+  c_chrg_coupl_352=pPar->fFactor4;
+  c_chrg_coupl_02681=pPar->fFactor5;
+  c_chrg_coupl_02682=pPar->fFactor6;
+  c_chrg_coupl_02683=pPar->fFactor7;
+  c_chrg_coupl_02684=pPar->fFactor8; 
+  c_number_bins=pPar->fBinsNr;
+  c_chrkv_qeff_vers_id=qeff_version;
+  c_chrkv_ph_lg_vers_id=phlg_version;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL INSERT INTO rich_anatest.digi_par (
+  digi_par_vers_id,
+  el_per_keV,
+  pad_range,
+  mat_pad_range,
+  mat_pad_size,
+  chrg_coupling,
+  noise_sigma,
+  chrg_per_chn,
+  anode_voltage,
+  polya_lower,
+  polya_upper,
+  chrg_coupl_4,
+  chrg_coupl_17a,
+  chrg_coupl_17b,
+  chrg_coupl_17,
+  chrg_coupl_351,
+  chrg_coupl_352,
+  chrg_coupl_02681,
+  chrg_coupl_02682,
+  chrg_coupl_02683,
+  chrg_coupl_02684,
+  number_bins,
+  chrkv_ph_lg_vers_id,
+  chrkv_qeff_vers_id)
+VALUES (
+  :vers,
+  :c_el_per_keV,
+  :c_pad_range,
+  :c_mat_pad_range,
+  :c_mat_pad_size,
+  :c_chrg_coupling,
+  :c_noise_sigma,
+  :c_chrg_per_chn,
+  :c_anode_voltage,
+  :c_polya_lower,
+  :c_polya_upper,
+  :c_chrg_coupl_4,
+  :c_chrg_coupl_17a,
+  :c_chrg_coupl_17b,
+  :c_chrg_coupl_17,
+  :c_chrg_coupl_351,
+  :c_chrg_coupl_352,
+  :c_chrg_coupl_02681,
+  :c_chrg_coupl_02682,
+  :c_chrg_coupl_02683,
+  :c_chrg_coupl_02684,
+  :c_number_bins,
+  :c_chrkv_qeff_vers_id,
+  :c_chrkv_ph_lg_vers_id);
+cout<<"******    Digitisation parameters written to Oracle\n";
+  commit();
+  pPar->setChanged(kFALSE);
+  cout<<"****************************************************************\n";
+  return version;
+not_found:
+  showSqlError("writePar(HRichDigitisationPar*)");
+  rollback();
+  pPar->setChanged(kFALSE);
+  return -1;
+};
+//************************************************************************
+Int_t HRichParOraIo::writePar(HRichGeometryPar* pPar) {
+    cout<<"sorry, this a dummy write function for the Geometry container"<<endl;
+return 0;
+};
+//************************************************************************
+Int_t HRichParOraIo::createAnaparVers() {
+  if (description.IsNull()) {
+    Error("createAnaparVers(...)",
+          "description of analysis parameters not defined");
+    return -1;
+  }
+  EXEC SQL BEGIN DECLARE SECTION;
+     char* descript;
+     int vers;
+  EXEC SQL END DECLARE SECTION;
+  descript=(char*)description.Data();
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    BEGIN
+      INSERT INTO rich_anatest.ana_par_vers (description)
+        VALUES (:descript);
+      SELECT rich_anatest.ana_par_query.get_curr_ana_version INTO :vers FROM DUAL;
+    END;
+  END-EXEC;
+  cout<<"******    Version ana_par_vers_id "<<vers<<" created\n";
+  return vers;
+not_found:
+  showSqlError("createAnaparVers()");
+  return vers;    
+};
+//************************************************************************
+
+Int_t HRichParOraIo::createDigiparVers() {
+  if (description.IsNull()) {
+    Error("createDigiparVers(...)",
+          "description of digitisation parameters not defined");
+    return -1;
+  }
+  EXEC SQL BEGIN DECLARE SECTION;
+     char* descript;
+     int vers;
+  EXEC SQL END DECLARE SECTION;
+  descript=(char*)description.Data();
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    BEGIN
+      INSERT INTO rich_anatest.digi_par_vers (description)
+        VALUES (:descript);
+      SELECT rich_anatest.digi_par_query.get_curr_digi_version INTO :vers FROM DUAL;
+    END;
+  END-EXEC;
+  cout<<"******    Version digi_par_vers_id "<<vers<<" created\n";
+  return vers;
+not_found:
+  showSqlError("createDigiparVers()");
+  return vers;    
+};
+//************************************************************************
+
+Int_t HRichParOraIo::getMaskVersion(TArrayI* contMatrix,Int_t matrixsize) {
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers[5];
+    int masksize[5];
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getMaskVersion(TArrayI*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE maskvers_cur CURSOR FOR
+    SELECT ring_mask_vers_id, matrix_size
+           FROM rich_anatest.ring_mask_vers
+           ORDER BY ring_mask_vers_id DESC;
+  EXEC SQL OPEN maskvers_cur;
+  EXEC SQL FETCH maskvers_cur INTO :vers, :masksize;
+  Int_t nVers=sqlca.sqlerrd[2];
+  TArrayI* oraMatrix=0;
+  Int_t oldVers=-1;
+  for (Int_t i=0;i<nVers;i++) {
+    if (!oraMatrix)  oraMatrix=new TArrayI(masksize[i]);
+    else {
+      if (masksize[i]!=oraMatrix->GetSize()) {
+         delete oraMatrix;
+         oraMatrix=new TArrayI(masksize[i]);
+      }
+    }
+    if (readMaskMatrix(oraMatrix,vers[i],masksize[i]) &&
+        compareMatrix(oraMatrix,contMatrix)) {
+        oldVers=vers[i];
+        EXEC SQL CLOSE maskvers_cur;
+        return oldVers;
+    }
+  }
+  EXEC SQL CLOSE maskvers_cur;
+  Int_t newVers=createMaskVersion(matrixsize);
+  if (newVers!=-1 && writeMaskMatrix(contMatrix,matrixsize,newVers)) return newVers;
+  rollback();
+  return -1;
+};
+//************************************************************************
+
+Int_t HRichParOraIo::createMaskVersion(Int_t matrixsize) {
+  char* descript = new char[255];
+  cout<<"enter comment for new ring mask matrix"<<endl;
+  cout<<" > ";
+  scanf("%[^\n]%*c",descript);
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* text;
+    int masksize;
+    int vers;
+  EXEC SQL END DECLARE SECTION;
+  text=descript;
+  masksize=matrixsize;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    BEGIN
+      INSERT INTO rich_anatest.ring_mask_vers (matrix_size,description)
+        VALUES (:masksize,:text);
+      SELECT rich_anatest.ana_par_query.get_curr_ring_mask_version
+        INTO :vers FROM DUAL;
+    END;
+  END-EXEC;
+  cout<<"******    Version ring_mask_vers_id "<<vers<<" created\n";
+  delete descript;
+  return vers;
+not_found:
+  showSqlError("createMaskVersion()");
+  delete descript;
+  return -1;    
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::writeMaskMatrix(TArrayI* contMatrix,Int_t matrixsize, Int_t version) {
+  EXEC SQL BEGIN DECLARE SECTION;
+    int c_col[400];
+    int c_row[400];
+    int c_value[400];
+    int vers[400];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  if (matrixsize>20) {
+    Error("writeMaskMatrix(TArrayI*,Int_t,Int_t)","matrix size > 20");
+    return kFALSE;
+  }
+  rows_to_insert=matrixsize*matrixsize;
+  for(Int_t i=0;i<rows_to_insert;i++) {
+    c_row[i]=((int)(i/matrixsize)) +1;
+    c_col[i]=i - (c_row[i]-1)*matrixsize +1;
+    c_value[i]=(*contMatrix)[i];
+    vers[i]=version;
+  }
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL FOR :rows_to_insert
+    INSERT INTO rich_anatest.ring_mask (
+               ring_mask_vers_id, m_col, m_row, m_value)
+        VALUES (:vers, :c_col, :c_row, :c_value);
+  return kTRUE;
+not_found:
+  showSqlError("writeMaskMatrix(TArrayI*,Int_t,Int_t)");
+  return kFALSE;
+}; 
+//************************************************************************
+
+Int_t HRichParOraIo::getPatternVersion(TArrayI* contMatrix,Int_t matrixsize) {
+  EXEC SQL BEGIN DECLARE SECTION;
+    int vers[5];
+    int pattsize[5];
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getPatternVersion(TArrayI*)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE pattvers_cur CURSOR FOR
+           SELECT   ring_pat_vers_id, matrix_size
+           FROM     rich_anatest.ring_pat_vers
+           ORDER BY ring_pat_vers_id DESC;
+  EXEC SQL OPEN pattvers_cur;
+  EXEC SQL FETCH pattvers_cur INTO :vers, :pattsize;
+  Int_t nVers=sqlca.sqlerrd[2];
+  TArrayI* oraMatrix=0;
+  Int_t oldVers=-1;
+  for (Int_t i=0;i<nVers;i++) {
+    if (!oraMatrix)  oraMatrix=new TArrayI(pattsize[i]);
+    else {
+      if (pattsize[i]!=oraMatrix->GetSize()) {
+         delete oraMatrix;
+         oraMatrix=new TArrayI(pattsize[i]);
+      }
+    }
+    if (readPatternMatrix(oraMatrix,vers[i],pattsize[i]) &&
+        compareMatrix(oraMatrix,contMatrix)) {
+        oldVers=vers[i];
+        EXEC SQL CLOSE pattvers_cur;
+        return oldVers;
+    }
+  }
+  EXEC SQL CLOSE pattvers_cur;
+  Int_t newVers=createPatternVersion(matrixsize);
+  if (newVers!=-1 && writePatternMatrix(contMatrix,matrixsize,newVers)) return newVers;
+  rollback();
+  return -1;
+};
+//************************************************************************
+
+Int_t HRichParOraIo::getQeffVers(TArrayF* contVec,Int_t contvecsize) {
+EXEC SQL BEGIN DECLARE SECTION;
+    int vers[5];
+    int vecsize[5];
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getQeffVers(TArrayF*,Int_t)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE qeffvers_cur CURSOR FOR
+           SELECT   chrkv_qeff_vers_id, vector_size
+           FROM     rich_anatest.chrkv_qeff_vers
+           ORDER BY chrkv_qeff_vers_id DESC;
+  EXEC SQL OPEN qeffvers_cur;
+  EXEC SQL FETCH qeffvers_cur INTO :vers, :vecsize;
+  Int_t nVers=sqlca.sqlerrd[2];
+  TArrayF* oraVector=0;
+  Int_t oldVers=-1;
+  for (Int_t i=0;i<nVers;i++) {
+    if (!oraVector)  oraVector=new TArrayF(vecsize[i]);
+    else {
+      if (vecsize[i]!=oraVector->GetSize()) {
+         delete oraVector;
+         oraVector=new TArrayF(vecsize[i]);
+      }
+    }
+    if (readQeffVec(oraVector,vers[i],vecsize[i]) &&
+        compareVector(oraVector,contVec)) {
+        oldVers=vers[i];
+        EXEC SQL CLOSE qeffvers_cur;
+        return oldVers;
+    }
+  }
+  EXEC SQL CLOSE qeffvers_cur;
+  Int_t newVers=createQeffVers(contvecsize);
+  if (newVers!=-1 && writeQeffVec(contVec,contvecsize,newVers)) return newVers;
+  rollback();
+  return -1;
+};
+//************************************************************************
+
+Int_t HRichParOraIo::getPhLgVers(TArrayF* contVec,Int_t contvecsize) {
+EXEC SQL BEGIN DECLARE SECTION;
+    int vers[5];
+    int vecsize[5];
+  EXEC SQL END DECLARE SECTION;
+  EXEC SQL WHENEVER SQLERROR DO showSqlError("getPhLgVers(TArrayF*,Int_t)");
+  EXEC SQL WHENEVER NOT FOUND CONTINUE;
+  EXEC SQL DECLARE phlgvers_cur CURSOR FOR
+           SELECT   chrkv_ph_lg_vers_id, vector_size
+           FROM     rich_anatest.chrkv_ph_lg_vers
+           ORDER BY chrkv_ph_lg_vers_id DESC;
+  EXEC SQL OPEN phlgvers_cur;
+  EXEC SQL FETCH phlgvers_cur INTO :vers, :vecsize;
+  Int_t nVers=sqlca.sqlerrd[2];
+  TArrayF* oraVector=0;
+  Int_t oldVers=-1;
+  for (Int_t i=0;i<nVers;i++) {
+    if (!oraVector)  oraVector=new TArrayF(vecsize[i]);
+    else {
+      if (vecsize[i]!=oraVector->GetSize()) {
+         delete oraVector;
+         oraVector=new TArrayF(vecsize[i]);
+      }
+    }
+    if (readQeffVec(oraVector,vers[i],vecsize[i]) &&
+        compareVector(oraVector,contVec)) {
+        oldVers=vers[i];
+        EXEC SQL CLOSE phlgvers_cur;
+        return oldVers;
+    }
+  }
+  EXEC SQL CLOSE phlgvers_cur;
+  Int_t newVers=createPhLgVers(contvecsize);
+  if (newVers!=-1 && writePhLgVec(contVec,contvecsize,newVers)) return newVers;
+  rollback();
+  return -1;
+};
+//************************************************************************
+
+Int_t HRichParOraIo::createQeffVers(Int_t vectorsize) {
+
+  char* descript = new char[255];
+  cout<<"enter comment for new quantum efficiency vector"<<endl;
+  cout<<" > ";
+  scanf("%[^\n]%*c",descript);
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* text;
+    int oravecsize;
+    int vers;
+  EXEC SQL END DECLARE SECTION;
+  text=descript;
+  oravecsize=vectorsize;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    BEGIN
+      INSERT INTO rich_anatest.chrkv_qeff_vers (vector_size,description)
+        VALUES (:oravecsize,:text);
+      SELECT rich_anatest.digi_par_query.get_curr_chrkv_qeff_version
+        INTO :vers FROM DUAL;
+    END;
+  END-EXEC;
+  cout<<"******    Version chrkv_qeff_vers_id "<<vers<<" created\n";
+  delete descript;
+  return vers;
+not_found:
+  showSqlError("createQeffVers()");
+  delete descript;
+  return -1;
+
+};
+//************************************************************************
+
+Int_t HRichParOraIo::createPhLgVers(Int_t vectorsize) {
+ char* descript = new char[255];
+  cout<<"enter comment for new photon wave length vector"<<endl;
+  cout<<" > ";
+  scanf("%[^\n]%*c",descript);
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* text;
+    int oravecsize;
+    int vers;
+  EXEC SQL END DECLARE SECTION;
+  text=descript;
+  oravecsize=vectorsize;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    BEGIN
+      INSERT INTO rich_anatest.chrkv_ph_lg_vers (vector_size,description)
+        VALUES (:oravecsize,:text);
+      SELECT rich_anatest.digi_par_query.get_curr_chrkv_ph_lg_version
+        INTO :vers FROM DUAL;
+    END;
+  END-EXEC;
+  cout<<"******    Version ph_lg_qeff_vers_id "<<vers<<" created\n";
+  delete descript;
+  return vers;
+not_found:
+  showSqlError("createPhLgVers()");
+  delete descript;
+  return -1;
+};
+//************************************************************************
+
+Int_t HRichParOraIo::createPatternVersion(Int_t matrixsize) {
+  char* descript = new char[255];
+  cout<<"enter comment for new ring pattern matrix"<<endl;
+  cout<<" > ";
+  scanf("%[^\n]%*c",descript);
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* text;
+    int pattsize;
+    int vers;
+  EXEC SQL END DECLARE SECTION;
+  text=descript;
+  pattsize=matrixsize;
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    BEGIN
+      INSERT INTO rich_anatest.ring_pat_vers (matrix_size,description)
+        VALUES (:pattsize,:text);
+      SELECT rich_anatest.ana_par_query.get_curr_ring_pat_version
+        INTO :vers FROM DUAL;
+    END;
+  END-EXEC;
+  cout<<"******    Version ring_pat_vers_id "<<vers<<" created\n";
+  delete descript;
+  return vers;
+not_found:
+  showSqlError("createPatternVersion()");
+  delete descript;
+  return -1;
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::writePatternMatrix(TArrayI* contMatrix,Int_t matrixsize, Int_t version) {
+  EXEC SQL BEGIN DECLARE SECTION;
+    int c_col[400];
+    int c_row[400];
+    int c_value[400];
+    int vers[400];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  if (matrixsize>20) {
+    Error("writePatternMatrix(TArrayI*,Int_t,Int_t)","matrix size > 20");
+    return kFALSE;
+  }
+  rows_to_insert=matrixsize*matrixsize;
+  for(Int_t i=0;i<rows_to_insert;i++) {
+    c_row[i]=((int)(i/matrixsize)) +1;
+    c_col[i]=i - (c_row[i]-1)*matrixsize +1;
+    c_value[i]=(*contMatrix)[i];
+    vers[i]=version;
+  }
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL FOR :rows_to_insert
+    INSERT INTO rich_anatest.ring_pat (
+               ring_pat_vers_id, m_col, m_row, m_value)
+        VALUES (:vers, :c_col, :c_row, :c_value);
+  return kTRUE;
+not_found:
+  showSqlError("writePatternMatrix(TArrayI*,Int_t,Int_t)");
+  return kFALSE;
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::writeQeffVec(TArrayF* contVector,Int_t vectorsize,Int_t version) {
+ EXEC SQL BEGIN DECLARE SECTION;
+    int c_bin[1000];
+    float c_value[1000];
+    int vers[1000];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  if (vectorsize>1000) {
+    Error("writeQeffVec(TArrayF*,Int_t,Int_t)","vector size > 1000");
+    return kFALSE;
+  }
+  rows_to_insert=vectorsize;
+  for(Int_t i=0;i<vectorsize;i++) {
+    c_bin[i]=i;
+    c_value[i]=(*contVector)[i];
+    vers[i]=version;
+  }
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL FOR :rows_to_insert
+    INSERT INTO rich_anatest.chrkv_qeff (
+               chrkv_qeff_vers_id, bin, value)
+        VALUES (:vers, :c_bin, :c_value);
+  return kTRUE;
+not_found:
+  showSqlError("writeQeffVec(TArrayF*,Int_t,Int_t)");
+  return kFALSE;
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::writePhLgVec(TArrayF* contVector,Int_t vectorsize,Int_t version) {
+  EXEC SQL BEGIN DECLARE SECTION;
+    int c_bin[1000];
+    float c_value[1000];
+    int vers[1000];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+  if (vectorsize>1000) {
+    Error("writePhLgVec(TArrayF*,Int_t,Int_t)","vector size > 1000");
+    return kFALSE;
+  }
+  rows_to_insert=vectorsize;
+  for(Int_t i=0;i<vectorsize;i++) {
+    c_bin[i]=i;
+    c_value[i]=(*contVector)[i];
+    vers[i]=version;
+  }
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL FOR :rows_to_insert
+    INSERT INTO rich_anatest.chrkv_ph_lg (
+               chrkv_ph_lg_vers_id, bin, value)
+        VALUES (:vers, :c_bin, :c_value);
+  return kTRUE;
+not_found:
+  showSqlError("writePhLgVec(TArrayF*,Int_t,Int_t)");
+  return kFALSE;
+}
+
+Bool_t HRichParOraIo::compareMatrix(TArrayI* oraMatrix,TArrayI* contMatrix) {
+  if (oraMatrix->GetSize()!=contMatrix->GetSize()) return kFALSE;
+  for(Int_t i=0;i<oraMatrix->GetSize();i++) {
+    if ((*oraMatrix)[i]!=(*contMatrix)[i]) return kFALSE;
+  }
+  return kTRUE;
+};
+//************************************************************************
+
+Bool_t HRichParOraIo::compareVector(TArrayF* oraVector,TArrayF* contVector) {
+  if (oraVector->GetSize()!=contVector->GetSize()) return kFALSE;
+  for(Int_t i=0;i<oraVector->GetSize();i++) {
+    if ((*oraVector)[i]!=(*contVector)[i]) return kFALSE;
+  }
+return kTRUE;
+};
+//************************************************************************
+
+Int_t HRichParOraIo::writePar(HRichCalPar* pPar) {
+  // creates a new version and writes the calibration parameters to Oracle
+  cout<<"****************************************************************\n";
+  Int_t version=createCalparVers();
+  if (version==-1) return -1;
+  EXEC SQL BEGIN DECLARE SECTION;
+    int sec[RICH_MAXPADS_READOUT];
+    int x[RICH_MAXPADS_READOUT];
+    int y[RICH_MAXPADS_READOUT];
+    int vers[RICH_MAXPADS_READOUT];
+    float slo[RICH_MAXPADS_READOUT];
+    float ofs[RICH_MAXPADS_READOUT];
+    float sig[RICH_MAXPADS_READOUT];
+    int rows_to_insert;
+  EXEC SQL END DECLARE SECTION;
+
+  HLocation loc;
+  loc.set(3,0,0,0);
+  HRichCalParCell* pCell=0;
+  Float_t cs=0, co=0, csi=0;
+  for(Int_t s=0;s<pPar->getNSectors();s++) {
+    Int_t nCell=-1;
+    if (richIds->At(s)>0) {
+      loc[0] = s;
+      for(Int_t r=0;r<pPar->getNRows();r++) {
+        loc[1]=r;    // y
+        for(Int_t c=0;c<pPar->getNColumns();c++) {
+          loc[2]=c;  // x
+          pCell = (HRichCalParCell*)pPar->getObject(loc);
+          if (pCell) {
+            cs=pCell->getSlope();
+            co=pCell->getOffset();
+	    csi=pCell->getSigma();
+            if (co!=0 || cs!=1) { // only non-default values
+              nCell++;
+              if (nCell==RICH_MAXPADS_READOUT) {
+                Error("writePar(HRichCalPar*)","\n Number of Pads > 4800\n");
+                rollback();
+                return -1;
+              }
+              sec[nCell]=s+1;
+              x[nCell]=c;
+              y[nCell]=r;
+              vers[nCell]=version;
+              slo[nCell]=cs;
+              ofs[nCell]=co;
+	      sig[nCell]=csi;
+            }
+          }
+        }
+      }
+    }
+    if (nCell==-1) continue;
+    rows_to_insert=nCell+1;
+    EXEC SQL WHENEVER SQLERROR GOTO not_found;
+    EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+    EXEC SQL FOR :rows_to_insert
+      INSERT INTO rich_anatest.cal_par (pad_id, cal_par_vers_id,
+                                        slope, offset, sigma)
+        VALUES (rich_anatest.cal_par_query.get_pad_id(:sec,:x,:y),
+                :vers, :slo, :ofs, :sig);
+    cout<<"sector_id: "<<(s+1)<<"    "<<rows_to_insert<<" rows inserted\n";
+    cout<<"                "<<countConnectedPads(s+1)<<" pads connected\n";
+  }
+  cout<<"******    Calibration parameters written to Oracle\n";
+  cout<<"****************************************************************\n";
+  commit();
+  pPar->setChanged(kFALSE);
+  return version;
+not_found:
+  showSqlError("writePar(HRichCalPar*)");
+  rollback();
+  pPar->setChanged(kFALSE);
+  return -1;
+};
+//************************************************************************
+
+void HRichParOraIo::printInfo(Text_t* msg) {
+  // prints the modules initialized from Oracle
+  // will later go to the log file
+  Bool_t first=kTRUE;
+  for(Int_t i=0;i<RICH_MAXSEC;i++) {
+    if (initModules->At(i)) {
+      if (first) {
+        cout<<msg;
+        first=kFALSE;
+      }
+      cout<<(initModules->At(i)-1)<<" ";
+    }
+  }
+  cout<<'\n';
+};
+//************************************************************************
+
+Int_t HRichParOraIo::createCalparVers() {
+  // creates a new version for the calibration parameters
+  // return the new version
+  if (author.IsNull()) {
+    Error("createCalparVers(...)",
+          "author of calibration parameters not defined");
+    return -1;
+  }
+  if (description.IsNull()) {
+    Error("createCalparVers(...)",
+          "descriction of calibration parameters not defined");
+    return -1;
+  }
+  if (runsUsed.IsNull()) {
+    Error("createCalparVers(...)",
+          "runs used for calibration parameters not defined");
+    return -1;
+  }
+  EXEC SQL BEGIN DECLARE SECTION;
+    char* creator;
+    char* descript;
+    char* runs;
+    int vers=-1;
+  EXEC SQL END DECLARE SECTION;
+  creator=(char*)author.Data();
+  descript=(char*)description.Data();
+  runs=(char*)runsUsed.Data();
+  EXEC SQL WHENEVER SQLERROR GOTO not_found;
+  EXEC SQL WHENEVER NOT FOUND GOTO not_found;
+  EXEC SQL EXECUTE
+    BEGIN
+      INSERT INTO rich_anatest.cal_par_vers (author, description, runs_used)
+        VALUES (:creator, :descript, :runs);
+      SELECT rich_anatest.cal_par_query.get_curr_version INTO :vers FROM DUAL;
+    END;
+  END-EXEC;
+  cout<<"******    Version cal_par_vers_id "<<vers<<" created\n";
+  return vers;
+not_found:
+  showSqlError("createCalparVers()");
+  return vers;
+};
+//************************************************************************
+
+Int_t HRichParOraIo::countConnectedPads(Int_t sector) {
+  // returns the number of connected pads in the Rich Sector
+  EXEC SQL BEGIN DECLARE SECTION;
+    int id;
+    int num;
+  EXEC SQL END DECLARE SECTION;
+  id=sector;
+  EXEC SQL WHENEVER SQLERROR DO
+    showSqlError("countConnectedPads(Int_t)");
+  EXEC SQL WHENEVER NOT FOUND GOTO notfound;
+  EXEC SQL SELECT COUNT(1) INTO :num
+           FROM rich_anatest.readout_lookup_at_date
+           WHERE sec=:id and pad IS NOT NULL;
+  return num;
+notfound:
+  return 0;
+};
+//************************************************************************
+
+void HRichParOraIo::resetComments(void) {
+  // resets the comments used to create a new version
+  author="";
+  description="";
+  runsUsed="";
+};
+//************************************************************************
+
+void HRichParOraIo::clearVersDate(Double_t* p) {
+  // clears a date range array
+  p[0]=-1;
+  p[1]=-1;
+};
+//************************************************************************

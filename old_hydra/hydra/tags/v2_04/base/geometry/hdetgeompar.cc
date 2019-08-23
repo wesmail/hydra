@@ -1,0 +1,184 @@
+//*-- AUTHOR : Ilse Koenig
+//*-- Modified : 25/05/99
+
+///////////////////////////////////////////////////////////////////////////////
+// HGeomDetPar
+//
+// Container class for the basic geometry parameters of a detector
+//
+// This container can hold the information about the sizes and positions of
+// volumes forming a geometry tree with 2 levels: modules and components in
+// these modules.
+// 
+// The information is stored in 2 arrays.
+// The array "modules" is a linear array of maxSectors*maxModules pointers to
+// detector modules (type HModGeomPar) each having a name and a lab
+// transformation which describes the position and orientation of the internal
+// module coordinate system relative to the cave coordinate system.
+// Each module has a pointer to a reference module describing the type of this
+// module. These module types (objects of class HGeomCompositeVolume) are
+// stored in the second array "refVolumes". (Normally the modules in the six
+// sectors are identical and the information has to be stored only once. Only
+// their position is different.)
+// Each reference module is a volume with a detector dependent number of
+// components which are volumes themselves. Each volume has a name, a shape, a
+// mother, a shape dependant number of points describing the size and a
+// transformation. The transformation of a module describes the detector
+// coordinate system (ideal position in a sector) and the transformation of a
+// component shows the position and orientation relative to  this detector
+// coordinate system. 
+//  
+///////////////////////////////////////////////////////////////////////////////
+
+#include "hdetgeompar.h"
+#include "hgeomcompositevolume.h"
+#include "hades.h"
+#include "hruntimedb.h"
+#include "hspectrometer.h"
+#include "hdetector.h"
+#include "hpario.h"
+
+ClassImp(HDetGeomPar)
+ClassImp(HModGeomPar)
+
+void HModGeomPar::setRefName(const Text_t* s) {
+  //sets the name of the reference volume
+  refName=s;
+  refName.ToUpper();
+}
+
+void HModGeomPar::print() {
+  // prints the name of the module volume, the name of the reference module
+  // volume and the lab transformation
+  cout<<fName<<"  "<<refName<<'\n';
+  transform.print();
+  printf("\n");
+}
+
+void HModGeomPar::clear() {
+  // clears the module
+  refName="";
+  refVolume=0;
+  transform.clear();
+}
+
+HDetGeomPar::HDetGeomPar(Text_t* detectorName,HGeomShapes* s) : HParSet() {
+  // The constructor takes as parameters the name of the detector and the
+  // pointer to the shape classes
+  // It creates an array of maxSectors*maxModules pointers of type HModGeomPar
+  // The pointers to modules which are not active (taken from the setup) are
+  // NULL-pointers.
+  // It creates also an array of size maxModules, which is filled which the 
+  // reference modules during initialisation
+  HDetector* setup=0;
+  strcpy(detName,detectorName);
+  if (gHades && (setup=gHades->getSetup()->getDetector(detName))) {
+    maxSectors=setup->getMaxSectors();
+    maxModules=setup->getMaxModules();
+    numComponents=setup->getMaxComponents();
+    if (maxModules>0) {
+      refVolumes=new TObjArray(maxModules);
+      Int_t* set=setup->getModules();
+      Int_t n=maxSectors*maxModules;
+      modules=new TObjArray(n);
+      for (Int_t i=0;i<n;++i) {
+        if (set[i]!=0) (*modules)[i]=new HModGeomPar();
+        else (*modules)[i]=0;
+      }
+    }
+  } else {
+    if (gHades) Error("HDetGeomPar(Text_t*,HGeomShapes*)",
+                      "Detector not found");
+    modules=0;
+    refVolumes=0;
+  }
+  shapes=s;
+}
+
+HDetGeomPar::~HDetGeomPar() {
+  // destructor deletes the arrays
+  if (modules) modules->Delete();
+  delete modules;
+  if (refVolumes) refVolumes->Delete();
+  delete refVolumes;
+}
+
+Int_t HDetGeomPar::getNumModules() {
+  // returns the maximum number of the modules
+  if (modules) return  (modules->GetSize());
+    return 0;
+}
+
+Int_t HDetGeomPar::getNumRefModules() {
+  // returns the maximum number of the reference modules
+  if (refVolumes) return  (refVolumes->GetSize());
+    return 0;
+}
+
+HModGeomPar* HDetGeomPar::getModule(const Int_t s,const Int_t m) {
+  // returns a pointer to the module with index m in sector with index s
+  if (modules) return (HModGeomPar*)modules->At(s*maxModules+m);
+  return 0;
+}
+
+HModGeomPar* HDetGeomPar::getModule(const Int_t n) {
+  // returns a pointer to the module at position n in the array
+  if (modules) return (HModGeomPar*)modules->At(n);
+  return 0;
+}
+
+void HDetGeomPar::getSector(TObjArray* array,const Int_t s) {
+  // fills the given array with the pointers to all modules in sector with
+  // index s
+  Int_t l=0;
+  if (array && (l=array->GetSize())) {
+    Int_t i=s*maxModules;
+    for(Int_t n=0;n<l&&n<maxModules;n++) {
+      array->AddAt(modules->At(i),i);
+      i++;
+    }
+  }
+}
+
+HGeomCompositeVolume* HDetGeomPar::getRefVolume(const Int_t m) {
+  // returns a pointer to the reference module with index m
+  if (refVolumes) return (HGeomCompositeVolume*)refVolumes->At(m);
+  return 0;
+}
+
+void HDetGeomPar::addRefVolume(HGeomCompositeVolume* v,const Int_t n) {
+  // adds the given reference volume in the array refVolumes
+  if (refVolumes==0) refVolumes=new TObjArray(n+1);
+  if (n>=refVolumes->GetSize()) refVolumes->Expand(n+1);
+  refVolumes->AddAt(v,n);
+}
+
+void HDetGeomPar::clear() {
+  // clears the parameter container
+  for(Int_t i=0;i<modules->GetSize();i++) {
+    HModGeomPar* p=(HModGeomPar*)modules->At(i);  
+    if (p) p->clear();
+  }
+  for(Int_t i=0;i<refVolumes->GetSize();i++) {
+    HGeomCompositeVolume* p=(HGeomCompositeVolume*)refVolumes->At(i);  
+    if (p) p->clear();
+  }
+  status=kFALSE;
+  resetInputVersions();
+}
+
+void HDetGeomPar::printParam() {
+  // prints the parameters
+  for(Int_t i=0;i<modules->GetSize();i++) {
+    HModGeomPar* p=(HModGeomPar*)modules->At(i);  
+    if (p) p->print();
+  }
+  for(Int_t i=0;i<refVolumes->GetSize();i++) {
+    HGeomCompositeVolume* p=(HGeomCompositeVolume*)refVolumes->At(i);  
+    if (p) p->print();
+  }
+}
+
+
+
+

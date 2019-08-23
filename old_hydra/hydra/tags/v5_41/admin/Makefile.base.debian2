@@ -1,0 +1,58 @@
+CXX		= g++
+LD		= g++
+LDFLAGS		= -g 
+
+CINTINC		= -I$(HADDIR)/base/datasource \
+	          -I$(HADDIR)/base/datastruct \
+	  	  -I$(HADDIR)/base/eventhandling \
+	          -I$(HADDIR)/base/geometry  \
+	 	  -I$(HADDIR)/base/runtimedb \
+	 	  -I$(HADDIR)/base/util \
+                  -I$(HADDIR)/base/correlation \
+		  -I$(HADDIR)/tof \
+                  -I$(HADDIR)/mdc \
+                  -I$(HADDIR)/rich \
+                  -I$(HADDIR)/shower\
+                  -I$(HADDIR)/start \
+                  -I$(HADDIR)/kickplane \
+                  -I$(HADDIR)/tofino
+ifdef ONLINEHYDRA
+   CINTINC	+= -I$(CLIDIR)  
+endif
+
+CXXFLAGS	=  -O2 -g -pipe -Wall -fPIC  -DR__GLIBC \
+	 	  -DDEBUG_LEVEL=$(HDL)  \
+                  -I$(ROOTSYS)/include $(CINTINC)
+
+ifdef NOLIBNEW
+ROOTLIBS	=  $(shell root-config --nonew --libs)
+ROOTGLIBS   	=  $(shell root-config --nonew --glibs)
+else
+ROOTLIBS	=  $(shell root-config --libs)
+ROOTGLIBS   	=  $(shell root-config --glibs)
+endif
+
+#RINT		=  $(ROOTSYS)/src/RINT_G__Rint.o $(ROOTSYS)/src/RINT_Rint.o
+#LIBS		=  $(ROOTLIBS)
+
+RINT		=  
+LIBS		=  $(ROOTLIBS)
+
+ifdef ONLINEHYDRA
+   LIBS		+= $(GSIDIR)/HRevLib.so 
+endif
+#GLIBS		=  $(LIBS) $(ROOTGLIBS) -L/usr/X11R6/lib \
+#                  -lm -lXpm -ldl -lX11 -rdynamic
+
+GLIBS		=  $(LIBS) $(ROOTGLIBS)  
+SOEXT		=  so
+AEXT            =  a
+SOFLAGS		=  -shared -Wl,-soname,
+TEMPBASE        =  /tmp/base_$(USER)
+
+
+
+
+
+
+
