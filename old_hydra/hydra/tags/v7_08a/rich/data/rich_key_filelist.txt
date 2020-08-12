@@ -1,3 +1,0 @@
-[ASCII File List]
-
-Files = rich/data/richanalysispar.txt ,  rich/data/richgeometrypar.txt , rich/data/richdigitisationpar.txt, rich/data/corr.txt

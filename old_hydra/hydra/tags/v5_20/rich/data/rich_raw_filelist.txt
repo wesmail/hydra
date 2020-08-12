@@ -1,3 +1,0 @@
-[ASCII File List]
-
-Files = data/rich_1205_06_calpar.txt,  data/richmappingpar.txt

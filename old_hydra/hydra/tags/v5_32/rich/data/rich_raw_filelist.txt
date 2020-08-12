@@ -1,3 +1,0 @@
-[ASCII File List]
-
-Files = richTest/data/xx00321193324_cal.txt,  richTest/data/richmappingpar.txt

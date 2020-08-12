@@ -1,3 +1,0 @@
-{
- printf("\nExiting Root\n");
-}

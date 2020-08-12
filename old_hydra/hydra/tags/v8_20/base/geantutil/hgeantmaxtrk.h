@@ -1,9 +1,0 @@
-#define MAXTRKKINE  30000
-#define MAXTRKMDC     195
-#define MAXCKOVRICH  4000
-#define MAXPARTRICH  4000
-#define MAXMIRRRICH   100
-#define MAXTRKSHOW    600
-#define MAXTRKTOF     200
-#define MAXTRKRPC    1500
-#define MAXTRKWALL   1000

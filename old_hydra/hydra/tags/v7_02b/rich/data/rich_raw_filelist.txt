@@ -1,3 +1,0 @@
-[ASCII File List]
-
-Files = rich/calexample.txt,  rich/richmappingpar.txt

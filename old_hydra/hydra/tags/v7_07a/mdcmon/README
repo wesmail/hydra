@@ -1,9 +1,0 @@
-To make MDC monitor running with ascii initialization:
-make clean 
-make ascii
-root
-
-For ORACLE mode:
-make clean
-make ora
-root
